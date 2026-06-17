@@ -7,6 +7,12 @@ sem depender do Samsung DeX.
 > Stack escolhida: **Termux-X11** (display nativo, melhor desempenho) +
 > **Ubuntu** (via `proot-distro`) + **KDE Plasma** (desktop completo).
 
+> ⚠️ **Status do projeto:** guia baseado em conhecimento e nas docs oficiais do
+> Termux/proot-distro, **validação em campo (no S23) ainda pendente**. O fluxo e
+> os ajustes são bem fundamentados, mas nomes exatos de pacotes e detalhes podem
+> precisar de pequenos ajustes na primeira execução. Encontrou um erro? Veja
+> [solução de problemas](docs/04-solucao-de-problemas.md) e/ou abra uma *issue*.
+
 ---
 
 ## Como funciona (visão geral)
@@ -50,7 +56,8 @@ sem depender do Samsung DeX.
 | [`scripts/00-setup-termux.sh`](scripts/00-setup-termux.sh) | Termux | Instala proot-distro, Termux-X11, PulseAudio e dependências |
 | [`scripts/01-install-ubuntu.sh`](scripts/01-install-ubuntu.sh) | Termux | Instala o Ubuntu via proot-distro |
 | [`scripts/02-setup-kde.sh`](scripts/02-setup-kde.sh) | **Dentro do Ubuntu** | Instala o KDE Plasma e ajusta o ambiente |
-| [`scripts/start-kde.sh`](scripts/start-kde.sh) | Termux | Inicia o desktop KDE |
+| [`scripts/start-kde.sh`](scripts/start-kde.sh) | Termux | Inicia o desktop KDE (método principal) |
+| [`scripts/start-kde-alt.sh`](scripts/start-kde-alt.sh) | Termux | Inicia o KDE pelo método alternativo (`-xstartup`), caso o principal falhe |
 | [`scripts/stop-kde.sh`](scripts/stop-kde.sh) | Termux | Encerra o desktop e libera memória |
 
 ---

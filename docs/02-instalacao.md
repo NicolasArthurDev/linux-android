@@ -12,13 +12,13 @@ Abra o **Termux** e rode:
 
 ```bash
 pkg install -y git
-git clone https://github.com/SEU-USUARIO/linux-in-s23.git
+git clone https://github.com/NicolasArthurDev/linux-in-s23.git
 cd linux-in-s23/scripts
 chmod +x *.sh
 ```
 
-> Troque `SEU-USUARIO` pelo seu usuário do GitHub depois de publicar o repo.
-> Se ainda não publicou, dá para copiar os scripts manualmente (veja a pasta `scripts/`).
+> Se o repositório ainda não estiver publicado no GitHub, dá para copiar os
+> scripts manualmente (veja a pasta `scripts/`).
 
 ---
 
@@ -60,7 +60,7 @@ mas o jeito mais simples é copiá-lo para dentro. Faça assim:
 cd /root
 # baixe de novo só este script, ou cole o conteúdo:
 apt update && apt install -y wget
-wget https://raw.githubusercontent.com/SEU-USUARIO/linux-in-s23/main/scripts/02-setup-kde.sh
+wget https://raw.githubusercontent.com/NicolasArthurDev/linux-in-s23/main/scripts/02-setup-kde.sh
 chmod +x 02-setup-kde.sh
 ./02-setup-kde.sh
 ```

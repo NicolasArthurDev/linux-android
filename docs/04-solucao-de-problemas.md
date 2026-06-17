@@ -11,6 +11,13 @@
   ./stop-kde.sh
   ./start-kde.sh
   ```
+- **Se o `start-kde.sh` insistir em falhar, tente o método alternativo:**
+  ```bash
+  ./stop-kde.sh
+  ./start-kde-alt.sh
+  ```
+  Ele inicia o servidor X11 e o KDE juntos via `-xstartup`, que alguns aparelhos
+  acham mais estável.
 
 ## "Cannot open display :0" / KDE não conecta
 

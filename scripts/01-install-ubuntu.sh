@@ -26,7 +26,7 @@ cat <<'MSG'
      proot-distro login ubuntu
      # (dentro do Ubuntu)
      apt update && apt install -y wget
-     wget https://raw.githubusercontent.com/SEU-USUARIO/linux-in-s23/main/scripts/02-setup-kde.sh
+     wget https://raw.githubusercontent.com/NicolasArthurDev/linux-in-s23/main/scripts/02-setup-kde.sh
      chmod +x 02-setup-kde.sh
      ./02-setup-kde.sh
 
