@@ -1,0 +1,8 @@
+# Arquivos temporários / locais
+*.log
+*.tmp
+*.bak
+.DS_Store
+
+# APKs baixados (não versionar binários)
+*.apk
