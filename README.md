@@ -54,8 +54,19 @@ Tudo é feito pelo **`lx`**, o script único na raiz do repositório.
 pkg install -y git
 git clone https://github.com/NicolasArthurDev/linux-android.git
 cd linux-android
-./lx
+./lx install     # deixa o comando 'lx' disponível de qualquer pasta
+lx               # menu interativo
 ```
+
+O `./lx install` cria um symlink em `$PREFIX/bin`. A partir daí você digita
+apenas `lx`, de onde estiver — não precisa lembrar onde clonou o repositório.
+
+> **Por que symlink e não um alias no `.zshrc`?** Um alias só existe em shells
+> interativos do shell onde foi definido: não funciona dentro de scripts, em
+> `sh -c`, em subshells, nem se você trocar de zsh para bash. O symlink num
+> diretório do `PATH` funciona em todos esses casos — é o que um gerenciador de
+> pacotes faria. E, por ser symlink e não cópia, um `git pull` já atualiza o
+> comando. Para remover: `lx uninstall` (o repositório fica intacto).
 
 Sem argumento nenhum ele abre um **menu interativo**. Se preferir digitar:
 
@@ -69,7 +80,9 @@ Sem argumento nenhum ele abre um **menu interativo**. Se preferir digitar:
 | `./lx doctor` | **Diagnostica o que está faltando** — rode este quando algo der errado |
 | `./lx status` | Mostra quais etapas já foram concluídas |
 | `./lx shell` | Abre um terminal dentro do Ubuntu |
-| `./lx update` | Atualiza os pacotes dos dois ambientes |
+| `./lx update` | Atualiza o repositório **e** os pacotes dos dois ambientes |
+| `./lx install` | Habilita o comando `lx` global · `uninstall` remove |
+| `./lx version` | Versão e qual arquivo está sendo executado |
 | `./lx help` | Ajuda completa |
 
 > ⚠️ **Antes do `setup`**, leia os [pré-requisitos](docs/01-pre-requisitos.md).

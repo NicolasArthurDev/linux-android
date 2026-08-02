@@ -112,6 +112,35 @@ state_clear(){
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
+# Caminho real deste arquivo, resolvendo symlinks.
+#
+# Importante porque, depois de 'lx install', o script é chamado através de um
+# symlink em $PREFIX/bin. Sem resolver, qualquer coisa relativa ao repositório
+# (docs, git pull) apontaria para o lugar errado.
+self_path() {
+    local s="${BASH_SOURCE[0]}"
+    if have readlink; then
+        readlink -f "$s" 2>/dev/null || printf '%s' "$s"
+    else
+        # Fallback sem readlink -f: segue a cadeia de symlinks à mão.
+        while [ -L "$s" ]; do
+            local dir; dir="$(cd -P "$(dirname "$s")" && pwd)"
+            s="$(ls -ld "$s" | sed 's/.*-> //')"
+            case "$s" in /*) ;; *) s="$dir/$s" ;; esac
+        done
+        printf '%s' "$s"
+    fi
+}
+
+# Diretório do repositório (onde o lx de verdade mora).
+repo_dir() { dirname "$(self_path)"; }
+
+# Onde instalar o symlink, conforme o contexto.
+link_target() {
+    if [ "$CTX" = "termux" ]; then printf '%s/bin/lx' "$PREFIX"
+    else printf '/usr/local/bin/lx'; fi
+}
+
 require_termux() {
     [ "$CTX" = "termux" ] || die "'$1' precisa rodar no Termux (contexto atual: $CTX)."
 }
@@ -124,7 +153,7 @@ require_ubuntu_installed() {
 run_in_ubuntu() {
     require_termux "run_in_ubuntu"
     require_ubuntu_installed
-    local self="${BASH_SOURCE[0]}"
+    local self; self="$(self_path)"
     [ -f "$self" ] || die "não consegui localizar o próprio script para copiar."
     install -m 755 "$self" "${ROOTFS}/root/lx" \
         || die "não consegui copiar o lx para dentro do Ubuntu."
@@ -827,11 +856,15 @@ cmd_setup() {
             || warn "GPU não configurada — o desktop vai usar a CPU. Rode './lx gpu' depois."
     fi
 
+    # Com o desktop instalado, vale deixar o comando acessível de qualquer pasta.
+    have lx || { echo; cmd_install || true; }
+
     echo
     header "Pronto"
-    say "  ./lx doctor    conferir se falta algo do lado do Android"
-    say "  ./lx dev       instalar o ambiente de desenvolvimento"
-    say "  ./lx start     iniciar o desktop"
+    local p="./lx"; have lx && p="lx"
+    say "  $p doctor    conferir se falta algo do lado do Android"
+    say "  $p dev       instalar o ambiente de desenvolvimento"
+    say "  $p start     iniciar o desktop"
     echo
     cmd_doctor
 }
@@ -998,8 +1031,85 @@ cmd_gpu() {
     fi
 }
 
+# ===========================================================================
+#  COMANDO: install / uninstall — deixa o 'lx' disponível de qualquer pasta
+# ===========================================================================
+#
+# Usamos um symlink em vez de um alias de propósito. Um alias só existe em
+# shells interativos do shell onde foi definido: não funciona dentro de
+# scripts, em `sh -c`, em subshells, nem se você trocar de zsh para bash.
+# O symlink num diretório do PATH funciona em todos esses casos — é o que um
+# gerenciador de pacotes faria.
+#
+# É symlink e não cópia para que 'git pull' atualize o comando junto.
+
+cmd_install() {
+    header "Instalando o comando 'lx'"
+
+    local src dst
+    src="$(self_path)"
+    dst="$(link_target)"
+
+    [ -f "$src" ] || die "não achei o script de origem."
+
+    if [ -e "$dst" ] || [ -L "$dst" ]; then
+        local cur; cur="$(readlink -f "$dst" 2>/dev/null || echo "$dst")"
+        if [ "$cur" = "$src" ]; then
+            ok "já instalado em $dst"
+            info "aponta para $src"
+            return 0
+        fi
+        warn "já existe algo em $dst"
+        info "aponta para: $cur"
+        confirm "Substituir?" || { info "cancelado."; return 1; }
+        rm -f "$dst"
+    fi
+
+    mkdir -p "$(dirname "$dst")" 2>/dev/null || true
+    if ln -s "$src" "$dst" 2>/dev/null; then
+        ok "symlink criado: $dst -> $src"
+    else
+        # Sistemas de arquivos sem suporte a symlink: copiamos, mas avisamos
+        # que aí o 'git pull' não atualiza sozinho.
+        warn "não consegui criar symlink — copiando o arquivo"
+        install -m 755 "$src" "$dst" || die "falha ao instalar em $dst"
+        warn "como é cópia, rode 'lx install' de novo após cada 'git pull'"
+    fi
+
+    echo
+    if have lx; then
+        ok "pronto — agora você pode rodar 'lx' de qualquer pasta"
+        info "experimente: lx status"
+    else
+        warn "instalado, mas '$(dirname "$dst")' não parece estar no PATH"
+        info "PATH atual: $PATH"
+    fi
+}
+
+cmd_uninstall() {
+    header "Removendo o comando 'lx'"
+    local dst; dst="$(link_target)"
+
+    if [ ! -e "$dst" ] && [ ! -L "$dst" ]; then
+        info "não havia nada em $dst"
+        return 0
+    fi
+    rm -f "$dst" && ok "removido: $dst"
+    info "o repositório continua onde está — só o atalho global foi removido"
+}
+
 cmd_update() {
     header "Atualizando"
+
+    # Se estivermos dentro do repositório git, atualiza o próprio lx primeiro.
+    # Como 'install' cria um symlink, o comando global acompanha automaticamente.
+    local rd; rd="$(repo_dir)"
+    if [ -d "$rd/.git" ] && have git; then
+        step "Atualizando o repositório..."
+        git -C "$rd" pull --ff-only 2>&1 | sed 's/^/     /' \
+            || warn "git pull falhou (seguindo com os pacotes)"
+    fi
+
     if [ "$CTX" = "termux" ]; then
         step "Pacotes do Termux..."; pkg update -y && pkg upgrade -y
         if [ -d "$ROOTFS" ]; then
@@ -1048,6 +1158,11 @@ BANNER
         say "  ${C_BOLD}7${C_RESET})  Status                   (status)"
         say "  ${C_BOLD}8${C_RESET})  Terminal do Ubuntu       (shell)"
         say "  ${C_BOLD}9${C_RESET})  Atualizar                (update)"
+        if have lx; then
+            say "  ${C_DIM}i)  comando 'lx' já instalado${C_RESET}"
+        else
+            say "  ${C_BOLD}i${C_RESET})  Usar 'lx' de qualquer pasta  (install)"
+        fi
         say "  ${C_BOLD}0${C_RESET})  Sair"
         echo
         printf '%sEscolha:%s ' "$C_BOLD" "$C_RESET"
@@ -1063,6 +1178,7 @@ BANNER
             7) cmd_status ;;
             8) cmd_shell ;;
             9) cmd_update ;;
+            i|I) cmd_install ;;
             0|q|Q) exit 0 ;;
             *) warn "opção inválida" ;;
         esac
@@ -1138,11 +1254,19 @@ ${C_BOLD}COMANDOS${C_RESET}
     ${C_BOLD}doctor${C_RESET}              Diagnostica o que está faltando ou errado.
     ${C_BOLD}status${C_RESET}              Mostra quais etapas já foram concluídas.
     ${C_BOLD}shell${C_RESET}               Abre um terminal dentro do Ubuntu.
-    ${C_BOLD}update${C_RESET}              Atualiza os pacotes do Termux e do Ubuntu.
+    ${C_BOLD}update${C_RESET}              Atualiza o repositório e os pacotes dos dois ambientes.
+
+    ${C_BOLD}install${C_RESET}             Deixa o 'lx' disponível de qualquer pasta.
+                        Cria um symlink em \$PREFIX/bin (não é um alias: também
+                        funciona dentro de scripts, subshells e outros shells).
+                        Como é symlink, 'git pull' já atualiza o comando.
+    ${C_BOLD}uninstall${C_RESET}           Remove esse atalho (o repositório fica).
+
     ${C_BOLD}help${C_RESET}                Esta ajuda.
 
 ${C_BOLD}EXEMPLOS${C_RESET}
-    ./lx setup                          instalação completa
+    ./lx install                        habilitar o comando 'lx' global
+    lx setup                            (depois disso, de qualquer pasta)
     ./lx start                          iniciar (GPU automática)
     ./lx start --gpu software           iniciar sem GPU (diagnóstico)
     ./lx start --extra "-force-bgra"    corrigir cores invertidas
@@ -1177,8 +1301,15 @@ main() {
         status)           cmd_status ;;
         shell|ubuntu)     cmd_shell ;;
         update)           cmd_update ;;
+        install)          cmd_install ;;
+        uninstall)        cmd_uninstall ;;
         help|-h|--help)   cmd_help ;;
-        version|--version) say "lx v${LX_VERSION}" ;;
+        version|--version|where)
+            say "lx v${LX_VERSION}"
+            say "arquivo:  $(self_path)"
+            say "invocado: ${BASH_SOURCE[0]}"
+            say "contexto: ${CTX}"
+            ;;
 
         # Subcomandos internos, usados quando o script se re-invoca no Ubuntu.
         setup-kde)        install_kde_inside ;;
