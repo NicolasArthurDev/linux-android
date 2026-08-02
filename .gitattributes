@@ -6,6 +6,11 @@
 # independente da config local de quem clonar.
 *.sh    text eol=lf
 
+# O 'lx' nao tem extensao, entao a regra *.sh acima nao o alcanca.
+# Sem esta linha ele vira CRLF em checkouts no Windows/WSL e falha no
+# Android com "bad interpreter: /usr/bin/env bash^M".
+lx      text eol=lf
+
 # Docs e config também padronizados em LF.
 *.md    text eol=lf
 LICENSE text eol=lf
