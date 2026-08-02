@@ -897,9 +897,16 @@ cmd_start() {
 
     while [ $# -gt 0 ]; do
         case "$1" in
-            --gpu)   gpu_mode="${2:-}"; shift 2 ;;
+            # Checar $# antes do 'shift 2' não é zelo excessivo: se faltar o
+            # valor, o shift falha sem alterar $#, o case casa de novo e o
+            # laço gira para sempre — travando o Termux.
+            --gpu)
+                [ $# -ge 2 ] || die "--gpu exige um valor: auto | turnip | virgl | software"
+                gpu_mode="$2"; shift 2 ;;
+            --extra)
+                [ $# -ge 2 ] || die "--extra exige um valor, ex: --extra \"-force-bgra\""
+                x11_extra="$2"; shift 2 ;;
             --alt)   use_alt=1; shift ;;
-            --extra) x11_extra="${2:-}"; shift 2 ;;
             *) die "opção desconhecida em 'start': $1" ;;
         esac
     done
@@ -929,7 +936,9 @@ cmd_start() {
         sleep 1
     fi
 
-    export XDG_RUNTIME_DIR="${TMPDIR}"
+    # TMPDIR sempre existe no Termux, mas o script roda com 'set -u': se algum
+    # ambiente estranho não o definir, a falha seria um erro cru de bash.
+    export XDG_RUNTIME_DIR="${TMPDIR:-$PREFIX/tmp}"
 
     # O ambiente que roda dentro do Ubuntu é o mesmo nos dois métodos.
     local inner
@@ -981,7 +990,8 @@ cmd_start() {
     fi
 
     echo
-    ok "Sessão encerrada. Rode './lx stop' para liberar memória e o wake-lock."
+    local p="./lx"; have lx && p="lx"
+    ok "Sessão encerrada. Rode '$p stop' para liberar memória e o wake-lock."
 }
 
 # Encerra tudo. Com "quiet" não imprime cabeçalhos (usado pelo start).
