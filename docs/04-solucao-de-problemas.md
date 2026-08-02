@@ -8,21 +8,21 @@
   Se você atualizou um, atualize o outro.
 - Reinicie do zero:
   ```bash
-  ./stop-kde.sh
-  ./start-kde.sh
+  lx stop
+  lx start
   ```
-- **Se o `start-kde.sh` insistir em falhar, tente o método alternativo:**
+- **Se o `lx start` insistir em falhar, tente o método alternativo:**
   ```bash
-  ./stop-kde.sh
-  ./start-kde-alt.sh
+  lx stop
+  lx start --alt
   ```
   Ele inicia o servidor X11 e o KDE juntos via `-xstartup`, que alguns aparelhos
   acham mais estável.
 - **Tela preta mesmo com o KDE rodando** — é um problema de desenho do
   Termux:X11, não do KDE. Use a flag oficial de contorno:
   ```bash
-  ./stop-kde.sh
-  X11_EXTRA="-legacy-drawing" ./start-kde.sh
+  lx stop
+  lx start --extra "-legacy-drawing"
   ```
 
 ## Cores trocadas (azul aparece como vermelho)
@@ -30,8 +30,8 @@
 Alguns aparelhos invertem a ordem dos canais de cor:
 
 ```bash
-./stop-kde.sh
-X11_EXTRA="-force-bgra" ./start-kde.sh
+lx stop
+lx start --extra "-force-bgra"
 ```
 
 ## "Cannot open display :0" / KDE não conecta
@@ -40,12 +40,12 @@ X11_EXTRA="-force-bgra" ./start-kde.sh
   ```bash
   pgrep -f termux-x11
   ```
-- Garanta que dentro do Ubuntu o `DISPLAY` está como `:0` (o `start-kde.sh` já faz isso).
+- Garanta que dentro do Ubuntu o `DISPLAY` está como `:0` (o `lx start` já faz isso).
 
 ## Tela pisca, trava ou os ícones somem
 
 - É o **compositor** do KDE tentando usar GPU que não existe em proot.
-- O `02-setup-kde.sh` já desativa o compositor. Se voltou a ativar, rode dentro do Ubuntu:
+- O `lx setup` já desativa o compositor. Se voltou a ativar, rode dentro do Ubuntu:
   ```bash
   proot-distro login ubuntu
   kwriteconfig5 --file kwinrc --group Compositing --key Enabled false
@@ -54,11 +54,11 @@ X11_EXTRA="-force-bgra" ./start-kde.sh
   > No Ubuntu 24.04 o comando é `kwriteconfig5` (Plasma 5). Se a imagem do
   > proot-distro for Ubuntu 25.x ou mais nova, o Plasma é 6 e o comando vira
   > `kwriteconfig6`. Cheque com `kwriteconfig6 --help` se o 5 não existir.
-- Confirme que `LIBGL_ALWAYS_SOFTWARE=1` está no `start-kde.sh` (renderização por software).
+- Confirme que `LIBGL_ALWAYS_SOFTWARE=1` está ativo — use `lx start --gpu software`.
 
 ## Sem áudio
 
-- O PulseAudio precisa estar rodando no Termux (o `start-kde.sh` inicia).
+- O PulseAudio precisa estar rodando no Termux (o `lx start` inicia).
 - Dentro do Ubuntu, teste:
   ```bash
   PULSE_SERVER=127.0.0.1 pactl info
@@ -85,15 +85,31 @@ Se o desktop cai sempre por volta do mesmo ponto (ex.: ao abrir o navegador),
 ## O Android "mata" o Termux em segundo plano
 
 - Desative a otimização de bateria (veja [pré-requisitos](01-pre-requisitos.md)).
-- O `start-kde.sh` já ativa o **wake-lock** automaticamente (precisa do app
+- O `lx start` já ativa o **wake-lock** automaticamente (precisa do app
   Termux:API instalado).
 - Confira também a restrição de processos filhos, acima.
 
 ## "KDE roda como root" / avisos de segurança
 
-- Funciona, mas o KDE reclama. Se quiser, crie um usuário comum: descomente o
-  bloco `USERNAME` em `scripts/02-setup-kde.sh` e ajuste o `start-kde.sh` para
-  logar como esse usuário (`proot-distro login ubuntu --user linux`).
+Funciona, mas o KDE reclama. Se quiser rodar como usuário comum, crie um dentro
+do Ubuntu:
+
+```bash
+lx shell
+# (dentro do Ubuntu)
+useradd -m -s /bin/bash linux
+echo "linux:linux" | chpasswd
+usermod -aG sudo linux
+passwd linux          # troque a senha
+exit
+```
+
+Depois é preciso ajustar o `lx` para logar como esse usuário: no `cmd_start`,
+troque `proot-distro login "$DISTRO" --shared-tmp` por
+`proot-distro login "$DISTRO" --shared-tmp --user linux`.
+
+> Nota: o `lx` não tem opção pronta para isso ainda. Rodar como root funciona e
+> é o padrão do projeto — só gera avisos.
 
 ## Firefox não instala (erro de snap)
 
@@ -105,7 +121,7 @@ Se o desktop cai sempre por volta do mesmo ponto (ex.: ao abrir o navegador),
 
 ```bash
 proot-distro remove ubuntu
-./01-install-ubuntu.sh
+lx setup
 ```
 
 ---

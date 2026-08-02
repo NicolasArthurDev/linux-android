@@ -49,31 +49,31 @@ caminho Zink; `freedreno`/`Turnip` indica o caminho direto.
 
 ## Instalando (Turnip)
 
-Entre no Ubuntu e rode o script:
+Um comando, direto do Termux:
 
 ```bash
-proot-distro login ubuntu
-cd /root
-wget https://raw.githubusercontent.com/NicolasArthurDev/linux-android/main/scripts/03-setup-gpu.sh
-chmod +x 03-setup-gpu.sh
-./03-setup-gpu.sh
-exit
+lx gpu
 ```
 
-O script:
+O `lx` se copia para dentro do Ubuntu e faz o trabalho lá — você não precisa
+entrar no Ubuntu nem baixar nada à mão.
+
+O que ele faz:
 
 1. detecta a versão do Ubuntu e escolhe o build correto;
 2. baixa o Mesa de [lfdevs/mesa-for-android-container][mesa] (~11 MB) — um Mesa
    compilado especificamente para containers em Android, porque o Mesa normal do
    Ubuntu não sabe falar com a GPU do Android;
 3. extrai em `/` e roda `ldconfig`;
-4. grava `/etc/linux-android-gpu.conf`, que o `start-kde.sh` lê para ativar a GPU
+4. grava `/etc/linux-android-gpu.conf`, que o `lx start` lê para ativar a GPU
    sozinho.
+
+> Se você rodou `lx setup`, isso **já foi feito** — o setup inclui a GPU.
 
 Depois disso, é só iniciar normalmente — a GPU passa a ser usada:
 
 ```bash
-./start-kde.sh
+lx start
 ```
 
 Você deve ver `==> Modo de renderização: turnip` no início.
@@ -110,32 +110,32 @@ glmark2
 
 ## Escolhendo o modo manualmente
 
-O `start-kde.sh` aceita a variável `GPU_MODE`:
+O `lx start` aceita a flag `--gpu`:
 
 ```bash
-./start-kde.sh                    # auto — usa Turnip se instalado
-GPU_MODE=turnip   ./start-kde.sh  # força GPU via Turnip
-GPU_MODE=virgl    ./start-kde.sh  # força GPU via virgl
-GPU_MODE=software ./start-kde.sh  # força CPU (diagnóstico)
+lx start                     # auto — usa Turnip se instalado
+lx start --gpu turnip        # força GPU via Turnip
+lx start --gpu virgl         # força GPU via virgl
+lx start --gpu software      # força CPU (diagnóstico)
 ```
 
 > 💡 **Ao investigar qualquer bug visual, teste primeiro com
-> `GPU_MODE=software`.** Se o problema sumir, é do driver de GPU e não do KDE.
-> Isso economiza muito tempo.
+> `lx start --gpu software`.** Se o problema sumir, é do driver de GPU e não do
+> KDE. Isso economiza muito tempo.
 
 ---
 
 ## Caminho alternativo: virgl
 
 Se o Turnip não funcionar no seu caso, o virgl é mais compatível. O
-`00-setup-termux.sh` já instala o pacote necessário. Basta:
+`lx setup` já instala o pacote necessário. Basta:
 
 ```bash
-GPU_MODE=virgl ./start-kde.sh
+lx start --gpu virgl
 ```
 
-O `start-kde.sh` sobe o `virgl_test_server_android` automaticamente antes do
-desktop, e o `stop-kde.sh` o encerra junto.
+O `lx start` sobe o `virgl_test_server_android` automaticamente antes do
+desktop, e o `lx stop` o encerra junto.
 
 Se faltar o pacote:
 
@@ -149,7 +149,7 @@ pkg install virglrenderer-android
 
 ### Artefatos, piscadas ou janelas corrompidas
 
-O compositor do KDE fica desativado pelo `02-setup-kde.sh` justamente porque, sem
+O compositor do KDE fica desativado pelo `lx setup` justamente porque, sem
 GPU, ele quebrava. **Com GPU, vale reativar** — pode ficar melhor:
 
 ```bash
@@ -160,7 +160,7 @@ Se piorar, desative de novo (`false`). No Plasma 6 o comando é `kwriteconfig6`.
 
 ### Tearing (a imagem "rasga" ao rolar)
 
-O `start-kde.sh` já exporta `vblank_mode=3` e `MESA_VK_WSI_PRESENT_MODE=mailbox`
+O `lx start` já exporta `vblank_mode=3` e `MESA_VK_WSI_PRESENT_MODE=mailbox`
 no modo Turnip, que é o contorno recomendado. Se persistir, reative o compositor
 (acima) — ele sincroniza o desenho.
 
@@ -169,12 +169,12 @@ no modo Turnip, que é o contorno recomendado. Se persistir, reative o composito
 Volte para software e confirme que o problema é o driver:
 
 ```bash
-./stop-kde.sh
-GPU_MODE=software ./start-kde.sh
+lx stop
+lx start --gpu software
 ```
 
 Se assim funcionar, o release do Mesa pode não bater com a sua versão do Ubuntu.
-Rode o `03-setup-gpu.sh` de novo (ele sempre pega o release mais recente) ou
+Rode o `lx gpu` de novo (ele sempre pega o release mais recente) ou
 baixe o build "Turnip-prefixed" (versão sem patches, para diagnóstico) direto
 das [releases do projeto][mesa].
 

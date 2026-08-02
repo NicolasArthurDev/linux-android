@@ -36,123 +36,119 @@ ou precisa resolver algum problema no meio do caminho.
 
 ---
 
-## Passo 0 — Baixar os scripts no Termux
+## Passo 0 — Baixar o projeto
 
 Abra o **Termux** e rode:
 
 ```bash
 pkg install -y git
 git clone https://github.com/NicolasArthurDev/linux-android.git
-cd linux-android/scripts
-chmod +x *.sh
+cd linux-android
+./lx install     # habilita o comando 'lx' de qualquer pasta
 ```
 
-> Se o repositório ainda não estiver publicado no GitHub, dá para copiar os
-> scripts manualmente (veja a pasta `scripts/`).
+O `install` cria um symlink em `$PREFIX/bin`. Se você pular esse passo, tudo
+funciona igual — só troque `lx` por `./lx` e fique dentro do diretório.
 
 ---
 
-## Passo 1 — Preparar o Termux
+## Passo 1 — `lx setup`
 
 ```bash
-./00-setup-termux.sh
+lx setup
 ```
 
-Isso instala: `proot-distro`, `termux-x11-nightly`, `pulseaudio` e dependências.
-Também roda o `termux-setup-storage` (vai pedir permissão de armazenamento — **aceite**).
+Este único comando faz as quatro etapas, em ordem, **pulando o que já estiver
+feito**:
+
+| Etapa | O que acontece | Tempo |
+|-------|----------------|-------|
+| 1/4 Termux | instala `proot-distro`, `termux-x11-nightly`, `pulseaudio`, `git`, `termux-api` e o virgl; roda o `termux-setup-storage` | ~3 min |
+| 2/4 Ubuntu | baixa e instala o Ubuntu via proot-distro | ~5 min |
+| 3/4 KDE | entra no Ubuntu e instala o Plasma, fontes, locales e os ajustes para proot | **~30 min** |
+| 4/4 GPU | baixa o Mesa com Turnip e ativa a aceleração da Adreno | ~2 min |
+
+Coisas que vão pedir sua atenção durante o processo:
+
+- **Permissão de armazenamento** — um popup do Android. Aceite.
+- Se cair a internet ou o Termux for morto, **rode `lx setup` de novo**. Ele
+  retoma de onde parou; não refaz o que já terminou.
+
+Ao final ele roda o `doctor` sozinho e lista o que ainda falta do lado do
+Android — os APKs e as opções de desenvolvedor, que nenhum script consegue
+fazer por você.
+
+> ℹ️ Note que na etapa 3/4 o `lx` **entra no Ubuntu sozinho**: ele se copia para
+> dentro do rootfs e se re-invoca lá. Você não precisa fazer
+> `proot-distro login` nem baixar scripts à mão.
 
 ---
 
-## Passo 2 — Instalar o Ubuntu
+## Passo 2 — Conferir o que falta
 
 ```bash
-./01-install-ubuntu.sh
+lx doctor
 ```
 
-Faz o download e instala o Ubuntu via proot-distro. Pode demorar alguns minutos.
+Ele verifica: os dois APKs (Termux:X11 e Termux:API), a restrição de processos
+filhos, os pacotes, o Ubuntu, o KDE, a GPU e o que está rodando.
+
+Resolva o que ele apontar antes de seguir — em especial a
+**restrição de processos filhos**, que é a causa mais comum de o desktop morrer
+sozinho. Passo a passo em [pré-requisitos](01-pre-requisitos.md).
 
 ---
 
-## Passo 3 — Instalar o KDE Plasma (dentro do Ubuntu)
-
-Primeiro entre no Ubuntu:
+## Passo 3 — Ambiente de desenvolvimento (opcional)
 
 ```bash
-proot-distro login ubuntu
+lx dev
 ```
 
-Agora você está **dentro do Ubuntu** (o prompt vira `root@localhost`).
-Rode o script de setup do KDE — ele está acessível pelo armazenamento compartilhado,
-mas o jeito mais simples é copiá-lo para dentro. Faça assim:
+Instala no Termux **e** no Ubuntu: zsh + Oh My Zsh (tema `darkblood`), NvChad,
+tmux, git, btop, bat, fzf, lazygit, fastfetch e Claude Code.
 
 ```bash
-# (ainda dentro do Ubuntu)
-cd /root
-# baixe de novo só este script, ou cole o conteúdo:
-apt update && apt install -y wget
-wget https://raw.githubusercontent.com/NicolasArthurDev/linux-android/main/scripts/02-setup-kde.sh
-chmod +x 02-setup-kde.sh
-./02-setup-kde.sh
-```
-
-Esse é o passo mais demorado (baixa o KDE inteiro).
-
----
-
-## Passo 3.5 — Ativar a GPU (ainda dentro do Ubuntu) ⭐
-
-Não pule este passo. É o maior ganho de desempenho do projeto — sem ele, todo o
-desktop é desenhado pela CPU.
-
-```bash
-# (ainda dentro do Ubuntu)
-wget https://raw.githubusercontent.com/NicolasArthurDev/linux-android/main/scripts/03-setup-gpu.sh
-chmod +x 03-setup-gpu.sh
-./03-setup-gpu.sh
-```
-
-Detalhes e diagnóstico em [aceleração de GPU](07-aceleracao-gpu.md).
-
-Agora **saia do Ubuntu**:
-
-```bash
-exit
+lx dev termux        # só no Termux
+lx dev --no-claude   # sem o Claude Code
 ```
 
 ---
 
 ## Passo 4 — Iniciar o desktop
 
-De volta ao Termux (fora do Ubuntu):
-
 ```bash
-cd ~/linux-android/scripts
-./start-kde.sh
+lx start
 ```
 
-O script inicia o servidor X11, o áudio e o KDE, e **abre o app Termux:X11 automaticamente**.
-Se não abrir sozinho, abra o app **Termux:X11** manualmente — o desktop estará lá.
+Inicia o servidor X11, o áudio e o KDE, e **abre o app Termux:X11
+automaticamente**. Se não abrir sozinho, abra o app manualmente.
 
 > Na primeira vez o KDE leva 1–2 min para carregar. Tenha paciência.
+
+Se a tela ficar preta ou as cores saírem trocadas, veja
+[solução de problemas](04-solucao-de-problemas.md) — há flags prontas para isso.
 
 ---
 
 ## Passo 5 — Encerrar
 
-Para fechar o desktop e liberar memória, volte ao Termux e rode:
-
 ```bash
-./stop-kde.sh
+lx stop
 ```
+
+Encerra o KDE, o X11, o áudio e o proot, e libera o wake-lock. **Sempre use**,
+para não deixar processos consumindo bateria.
 
 ---
 
-## Resumo dos comandos do dia a dia
+## Resumo
 
 ```bash
-cd ~/linux-android/scripts
-./start-kde.sh   # iniciar
-./stop-kde.sh    # parar
+lx start   # iniciar
+lx stop    # parar
+lx doctor  # quando algo der errado
+lx         # menu, se preferir não decorar
 ```
 
 Veja mais em [uso diário](03-uso-diario.md).

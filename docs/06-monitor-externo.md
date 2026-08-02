@@ -78,7 +78,7 @@ SystemUI do Android operando em outro modo.
 
 1. Conecte o hub. O DeX inicia sozinho (ou aparece a notificação
    **"Iniciar o Samsung DeX"**).
-2. No DeX, abra o **Termux** e rode `./start-kde.sh`.
+2. No DeX, abra o **Termux** e rode `lx start`.
 3. A janela do **Termux:X11** aparece — **maximize** e pronto: KDE em tela cheia
    no monitor.
 
@@ -99,8 +99,8 @@ SystemUI do Android operando em outro modo.
 - Há relatos de **cores ou brilho estranhos** no Termux:X11 sob DeX em alguns
   Samsung. Se acontecer:
   ```bash
-  ./stop-kde.sh
-  X11_EXTRA="-force-bgra" ./start-kde.sh
+  lx stop
+  lx start --extra "-force-bgra"
   ```
 
 ---
@@ -129,7 +129,7 @@ Ele depende da flag de sistema `force_desktop_mode_on_external_displays`.
 
 3. **Reinicie o celular.** A flag só passa a valer após reboot.
 
-4. Conecte o hub, abra o Termux e rode `./start-kde.sh`.
+4. Conecte o hub, abra o Termux e rode `lx start`.
 
 ### Se a opção não existir no menu
 
@@ -185,7 +185,7 @@ Num monitor de 24", a escala de celular deixa tudo gigante. Duas opções:
 
 ```bash
 # no Termux, ao iniciar:
-X11_EXTRA="-dpi 96" ./start-kde.sh
+lx start --extra "-dpi 96"
 ```
 
 Ou dentro do KDE: **Configurações do Sistema → Tela e Monitor → Escala Global**
@@ -210,7 +210,7 @@ Para tornar permanente, adicione a linha no `~/.bashrc` do Ubuntu ou configure e
 
 O som vai pelo PulseAudio para o Android, e o Android manda para o HDMI se o
 monitor tiver alto-falantes. Não precisa configurar nada além do que o
-`start-kde.sh` já faz.
+`lx start` já faz.
 
 ---
 
@@ -223,8 +223,8 @@ Isto **não é opcional** neste modo de uso:
   que o telefone consegue repor sem carregador.
 - Desative a otimização de bateria do Termux e do Termux:X11
   (veja [pré-requisitos](01-pre-requisitos.md)).
-- O `start-kde.sh` já ativa **wake-lock** automaticamente, e o `stop-kde.sh`
-  libera. Não pule o `stop-kde.sh`.
+- O `lx start` já ativa **wake-lock** automaticamente, e o `lx stop`
+  libera. Não pule o `lx stop`.
 - O S23 vai **esquentar** e reduzir o clock (throttling) em sessões longas.
   Resolução menor e compositor desligado ajudam bastante.
 
@@ -240,8 +240,8 @@ O modo desktop não está ativo. Refaça o **Caminho A** (incluindo o **reboot**
 ### Tela preta no monitor, mas o KDE parece estar rodando
 
 ```bash
-./stop-kde.sh
-X11_EXTRA="-legacy-drawing" ./start-kde.sh
+lx stop
+lx start --extra "-legacy-drawing"
 ```
 
 ### Cores invertidas (azul vira vermelho)
@@ -249,8 +249,8 @@ X11_EXTRA="-legacy-drawing" ./start-kde.sh
 Sintoma clássico em alguns aparelhos, e especialmente relatado sob DeX:
 
 ```bash
-./stop-kde.sh
-X11_EXTRA="-force-bgra" ./start-kde.sh
+lx stop
+lx start --extra "-force-bgra"
 ```
 
 ### O desktop cai quando eu troco de app no celular
@@ -272,7 +272,7 @@ Sim, com expectativas calibradas:
 ✅ Navegar, escrever, terminal, código, LibreOffice, ferramentas de linha de
 comando — tudo isso funciona bem no Snapdragon 8 Gen 2.
 
-✅ **Com aceleração de GPU ativada** (`03-setup-gpu.sh`), a interface fica fluida
+✅ **Com aceleração de GPU ativada** (`lx gpu`), a interface fica fluida
 e o navegador deixa de engasgar. Não pule esse passo —
 veja [aceleração de GPU](07-aceleracao-gpu.md).
 

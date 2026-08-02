@@ -21,25 +21,35 @@ e renderizado por software, alguns ajustes ajudam muito.
 ## Alternativa mais leve: XFCE
 
 Se o KDE ficar pesado demais, o **XFCE** é muito mais leve e estável em proot.
-Dentro do Ubuntu:
+Vários guias de Linux no Android usam XFCE justamente por isso.
+
+Instale dentro do Ubuntu:
 
 ```bash
+lx shell
 apt install -y xfce4 xfce4-terminal dbus-x11
+exit
 ```
 
-E troque a última linha do `start-kde.sh` de:
+Depois edite o `lx`: no final da função `cmd_start`, na variável `inner`,
+troque a última linha de
 
 ```bash
 dbus-launch --exit-with-session startplasma-x11
 ```
 
-para:
+para
 
 ```bash
 dbus-launch --exit-with-session startxfce4
 ```
 
-(Você pode duplicar o script como `start-xfce.sh` e manter os dois.)
+> ⚠️ **O `lx` ainda não tem uma flag para escolher o desktop** — por enquanto é
+> edição manual, e um `git pull` sobrescreve a mudança. Se você acabar usando
+> XFCE de vez, vale abrir uma *issue* pedindo um `lx start --de xfce`.
+
+Antes de migrar, teste ativar a [GPU](07-aceleracao-gpu.md): o KDE acelerado
+costuma ficar mais confortável que o XFCE em software.
 
 ---
 
@@ -97,7 +107,7 @@ apt update && apt install -y code
 
 ## Reduzir uso de memória
 
-- Sempre encerre com `./stop-kde.sh` quando não estiver usando.
+- Sempre encerre com `lx stop` quando não estiver usando.
 - Feche apps pesados antes de trocar de app no Android.
 - Monitore com `htop` dentro do Ubuntu.
 

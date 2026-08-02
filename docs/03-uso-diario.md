@@ -1,12 +1,15 @@
 # 3. Uso diário
 
+> Estes comandos supõem que você rodou `./lx install` uma vez — a partir daí o
+> `lx` funciona de qualquer pasta. Se não rodou, entre no diretório do
+> repositório e use `./lx` no lugar de `lx`.
+
 ## Iniciar o desktop
 
 No **Termux**:
 
 ```bash
-cd ~/linux-android/scripts
-./start-kde.sh
+lx start
 ```
 
 O app **Termux:X11** abre sozinho mostrando o KDE. Se não abrir, abra-o manualmente.
@@ -17,24 +20,32 @@ Volte ao **Termux** (deslize de fora para dentro da borda esquerda no Termux:X11
 mostra o teclado/atalhos; para sair, troque de app para o Termux) e rode:
 
 ```bash
-./stop-kde.sh
+lx stop
 ```
 
-Sempre encerre com o `stop-kde.sh` para não deixar processos consumindo bateria.
+Sempre encerre com o `lx stop` para não deixar processos consumindo bateria —
+ele também libera o wake-lock.
+
+## Menu, se preferir não decorar comandos
+
+```bash
+lx
+```
+
+Sem argumentos, abre um menu com todas as opções numeradas.
 
 ---
 
-## Atalho rápido (opcional)
+## Comandos do dia a dia
 
-Crie um atalho no Termux para iniciar com um comando curto:
-
-```bash
-echo 'alias kde="bash ~/linux-android/scripts/start-kde.sh"' >> ~/.bashrc
-echo 'alias kde-off="bash ~/linux-android/scripts/stop-kde.sh"' >> ~/.bashrc
-source ~/.bashrc
-```
-
-Depois é só digitar `kde` para iniciar e `kde-off` para parar.
+| Comando | O que faz |
+|---------|-----------|
+| `lx start` | inicia o desktop |
+| `lx stop` | encerra e libera memória |
+| `lx status` | o que já está instalado |
+| `lx doctor` | diagnostica problemas |
+| `lx shell` | terminal dentro do Ubuntu |
+| `lx update` | atualiza repositório e pacotes |
 
 ---
 
@@ -54,16 +65,16 @@ Depois é só digitar `kde` para iniciar e `kde-off` para parar.
 
 ## Compartilhar arquivos entre Android e Linux
 
-Use o `--shared-tmp` (já ativado no `start-kde.sh`) ou acesse o armazenamento do
+Use o `--shared-tmp` (já ativado pelo `lx start`) ou acesse o armazenamento do
 celular de dentro do Ubuntu.
 
 > ⚠️ Se o `~/storage` não aparecer, rode o `termux-setup-storage` **com o desktop
 > parado** — ele precisa do popup de permissão do Android, que não aparece com o
 > Termux:X11 na frente:
 > ```bash
-> ./stop-kde.sh
+> lx stop
 > termux-setup-storage      # aceite a permissão na tela
-> ./start-kde.sh
+> lx start
 > ```
 
 Para montar a pasta de armazenamento compartilhada,

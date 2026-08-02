@@ -1,18 +1,20 @@
 # Linux com interface gráfica no Galaxy S23 (sem root)
 
-Guia completo e scripts para rodar um **Ubuntu com desktop KDE Plasma** dentro do
-Galaxy S23, usando **Termux + proot-distro + Termux-X11** — sem precisar de root e
-sem depender do Samsung DeX.
+Guia completo e um script único para rodar um **Ubuntu com desktop KDE Plasma**
+dentro do Galaxy S23, usando **Termux + proot-distro + Termux-X11** —
+**sem root**, com **aceleração de GPU** e opcionalmente num monitor externo.
 
 > Stack escolhida: **Termux-X11** (display nativo, melhor desempenho) +
-> **Ubuntu** (via `proot-distro`) + **KDE Plasma** (desktop completo).
+> **Ubuntu** (via `proot-distro`) + **KDE Plasma** (desktop completo) +
+> **Turnip/Mesa** (GPU Adreno de verdade, sem root).
 
 **Dois modos de uso:**
 
-1. **Na tela do celular** — funciona direto, sem hardware extra.
+1. **Na tela do celular** — funciona direto, sem hardware extra e sem DeX.
 2. **Como computador de mesa** — hub USB-C com HDMI + USB + carregador, virando
-   um desktop Linux com monitor, teclado e mouse. Isso exige um passo extra de
-   configuração no Android: veja [monitor externo](docs/06-monitor-externo.md).
+   um desktop Linux com monitor, teclado e mouse. Nesse caso o **Samsung DeX é o
+   caminho recomendado**, por dar semântica nativa de mouse e não exigir opções
+   de desenvolvedor: veja [monitor externo](docs/06-monitor-externo.md).
 
 > ⚠️ **Status do projeto:** guia baseado em conhecimento e nas docs oficiais do
 > Termux/proot-distro, **validação em campo (no S23) ainda pendente**. O fluxo e

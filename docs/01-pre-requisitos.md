@@ -34,7 +34,7 @@ O app que mostra a tela do desktop. Ele **não** está na Play Store.
 
 ## App 3 — Termux:API (recomendado)
 
-Necessário para o **wake-lock automático** do `start-kde.sh` — sem ele, o Android
+Necessário para o **wake-lock automático** do `lx start` — sem ele, o Android
 mata o Termux em segundo plano e o desktop cai quando você troca de app.
 
 - **F-Droid:** https://f-droid.org/packages/com.termux.api/
