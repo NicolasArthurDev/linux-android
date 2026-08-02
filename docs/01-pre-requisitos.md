@@ -175,6 +175,28 @@ adb shell "/system/bin/device_config put activity_manager max_phantom_processes 
 > precisa ser refeito. A opção de desenvolvedor, quando existe, é persistente —
 > prefira ela.
 
+### Como conferir (e por que o `lx doctor` não consegue)
+
+O `lx doctor` normalmente diz **"não foi possível confirmar"** aqui. Isso é
+esperado, não é falha sua:
+
+- `settings get global settings_enable_monitor_phantom_procs` só devolve
+  `false` se o toggle gravou nessa chave. Em várias ROMs — One UI incluída —
+  ele grava em outro lugar, e a leitura volta `null`.
+- `device_config get activity_manager max_phantom_processes` exige **root ou
+  ADB** no Android 14+. Do Termux dá permissão negada.
+
+**Se você ativou a opção e reiniciou, considere feito.** O teste que vale é
+prático: se o desktop rodar por 10+ minutos com o navegador aberto sem morrer,
+está desativada.
+
+Para confirmar de fato, com um PC:
+
+```bash
+adb shell settings get global settings_enable_monitor_phantom_procs
+adb shell device_config get activity_manager max_phantom_processes
+```
+
 ---
 
 ## Recomendado: desativar otimização de bateria do Termux

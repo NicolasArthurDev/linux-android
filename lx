@@ -238,15 +238,38 @@ check_android_app() {
     return 2
 }
 
+# Estado da restricao de processos filhos (Phantom Process Killer).
+#
+# Nao da para saber isto com certeza a partir do Termux:
+#
+#   - 'settings get global settings_enable_monitor_phantom_procs' e a chave
+#     correta, mas so retorna "false" se a opcao foi gravada por ali. Em
+#     varias ROMs (One UI incluida) o toggle das Opcoes de desenvolvedor grava
+#     em outro lugar, e a leitura devolve "null" mesmo com a opcao ligada.
+#
+#   - 'device_config get activity_manager max_phantom_processes' exige root ou
+#     ADB no Android 14+; do Termux da permission denied.
+#
+# Por isso distinguimos "desativada" de "nao sei", em vez de tratar as duas
+# como problema. Acusar erro a quem ja fez a configuracao certa e pior do que
+# admitir que a checagem nao alcanca.
+#
+# Retorno: 0 = desativada (bom), 1 = ativa, 2 = indeterminado.
+PHANTOM_RAW=""
 check_phantom_killer() {
-    # Retorna 0 se a restrição parece DESATIVADA (bom), 1 se ativa/desconhecida.
-    local v
-    v="$(settings get global settings_enable_monitor_phantom_procs 2>/dev/null)"
-    [ "$v" = "false" ] && return 0
-    v="$(/system/bin/device_config get activity_manager max_phantom_processes 2>/dev/null)"
-    case "$v" in
-        ''|null|'') return 1 ;;
-        *) [ "$v" -gt 1000 ] 2>/dev/null && return 0 || return 1 ;;
+    local v1 v2
+    v1="$(settings get global settings_enable_monitor_phantom_procs 2>&1)"
+    v2="$(/system/bin/device_config get activity_manager max_phantom_processes 2>&1)"
+    PHANTOM_RAW="settings=[${v1}] device_config=[${v2}]"
+
+    case "$v1" in
+        false|0) return 0 ;;
+        true|1)  return 1 ;;
+    esac
+
+    case "$v2" in
+        ''|null|*[!0-9]*) return 2 ;;              # vazio, null ou erro/texto
+        *) [ "$v2" -gt 1000 ] && return 0 || return 1 ;;
     esac
 }
 
@@ -278,14 +301,19 @@ cmd_doctor() {
         info "Termux:API é opcional — este projeto não precisa dele"
 
         step "Restrição de processos filhos (Phantom Process Killer)"
-        if check_phantom_killer; then
-            ok "restrição desativada"
-        else
-            err "restrição PROVAVELMENTE ATIVA — causa nº1 de o desktop morrer sozinho"
-            info "Opções de desenvolvedor -> 'Desativar restrições de processos filhos'"
-            info "e reinicie o celular. Detalhes: docs/01-pre-requisitos.md"
-            problems=$((problems+1))
-        fi
+        check_phantom_killer; local ph_rc=$?
+        case "$ph_rc" in
+            0) ok "restrição desativada" ;;
+            1) err "restrição ATIVA — causa nº1 de o desktop morrer sozinho"
+               info "Opções de desenvolvedor -> 'Desativar restrições de processos filhos'"
+               info "e reinicie o celular. Detalhes: docs/01-pre-requisitos.md"
+               problems=$((problems+1)) ;;
+            *) info "não foi possível confirmar pelo terminal — o Android não deixa"
+               info "o Termux ler essa configuração (precisa de root ou ADB)."
+               info "Se você já ativou 'Desativar restrições de processos filhos'"
+               info "nas Opções de desenvolvedor E reiniciou, está tudo certo."
+               info "leitura crua: ${PHANTOM_RAW}" ;;
+        esac
 
         step "Pacotes do Termux"
         local p
