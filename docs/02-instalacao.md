@@ -2,7 +2,37 @@
 
 Tempo estimado: **30–60 min** (depende da internet). Mantenha o celular no Wi-Fi e carregando.
 
-Vamos baixar os scripts deste repositório diretamente no Termux e executá-los na ordem.
+---
+
+## Caminho rápido
+
+Se você só quer instalar, são três comandos:
+
+```bash
+pkg install -y git
+git clone https://github.com/NicolasArthurDev/linux-android.git
+cd linux-android && ./lx setup
+```
+
+O `./lx setup` cuida de tudo — Termux, Ubuntu, KDE e GPU — e **pula o que já
+está feito**, então pode ser interrompido e rodado de novo à vontade.
+
+Ao terminar, ele roda o `doctor` sozinho e lista o que ainda falta do lado do
+Android (os APKs e a opção de desenvolvedor, que não dá para automatizar).
+
+Depois:
+
+```bash
+./lx dev      # ambiente de desenvolvimento (opcional)
+./lx start    # iniciar o desktop
+```
+
+O resto desta página explica **o que cada etapa faz**, para quem quer entender
+ou precisa resolver algum problema no meio do caminho.
+
+---
+
+## Passo a passo detalhado
 
 ---
 

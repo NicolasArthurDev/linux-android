@@ -46,31 +46,73 @@ sem depender do Samsung DeX.
 
 ---
 
-## Por onde começar
+## Começando — um comando só
 
-1. Leia os [pré-requisitos](docs/01-pre-requisitos.md) — apps que precisam ser instalados manualmente.
-2. Siga o [guia de instalação](docs/02-instalacao.md) passo a passo.
-3. Aprenda o [uso diário](docs/03-uso-diario.md) (iniciar/parar o desktop).
-4. Se algo der errado, veja a [solução de problemas](docs/04-solucao-de-problemas.md).
-5. Para deixar mais rápido, veja as [dicas de desempenho](docs/05-dicas-desempenho.md).
-6. Para usar num **monitor externo** (hub USB-C com HDMI, teclado e mouse), veja
-   [monitor externo](docs/06-monitor-externo.md).
-7. Para ativar a **GPU** (o maior ganho de desempenho do projeto), veja
-   [aceleração de GPU](docs/07-aceleracao-gpu.md).
+Tudo é feito pelo **`lx`**, o script único na raiz do repositório.
+
+```bash
+pkg install -y git
+git clone https://github.com/NicolasArthurDev/linux-android.git
+cd linux-android
+./lx
+```
+
+Sem argumento nenhum ele abre um **menu interativo**. Se preferir digitar:
+
+| Comando | O que faz |
+|---------|-----------|
+| `./lx setup` | Instala tudo: Termux, Ubuntu, KDE e GPU. **Pula o que já está feito** — pode rodar de novo sem medo |
+| `./lx start` | Inicia o desktop (detecta a GPU sozinho) |
+| `./lx stop` | Encerra e libera memória |
+| `./lx dev` | Ambiente de desenvolvimento (zsh, NvChad, tmux, lazygit...) |
+| `./lx gpu` | Ativa a aceleração de GPU |
+| `./lx doctor` | **Diagnostica o que está faltando** — rode este quando algo der errado |
+| `./lx status` | Mostra quais etapas já foram concluídas |
+| `./lx shell` | Abre um terminal dentro do Ubuntu |
+| `./lx update` | Atualiza os pacotes dos dois ambientes |
+| `./lx help` | Ajuda completa |
+
+> ⚠️ **Antes do `setup`**, leia os [pré-requisitos](docs/01-pre-requisitos.md).
+> Há dois APKs e uma opção de desenvolvedor que **precisam ser feitos à mão** —
+> o `./lx doctor` avisa se algum ficou faltando, mas não consegue fazer por você.
+
+> Os scripts em `scripts/` viraram atalhos que chamam o `lx`. Continuam
+> funcionando, mas o caminho recomendado é o `./lx`.
 
 ---
 
-## Scripts
+## Ambiente de desenvolvimento
 
-| Script | Onde roda | O que faz |
-|--------|-----------|-----------|
-| [`scripts/00-setup-termux.sh`](scripts/00-setup-termux.sh) | Termux | Instala proot-distro, Termux-X11, PulseAudio e dependências |
-| [`scripts/01-install-ubuntu.sh`](scripts/01-install-ubuntu.sh) | Termux | Instala o Ubuntu via proot-distro |
-| [`scripts/02-setup-kde.sh`](scripts/02-setup-kde.sh) | **Dentro do Ubuntu** | Instala o KDE Plasma e ajusta o ambiente |
-| [`scripts/03-setup-gpu.sh`](scripts/03-setup-gpu.sh) | **Dentro do Ubuntu** | Ativa aceleração de GPU (Turnip/Adreno) — muda muito o desempenho |
-| [`scripts/start-kde.sh`](scripts/start-kde.sh) | Termux | Inicia o desktop KDE (método principal) |
-| [`scripts/start-kde-alt.sh`](scripts/start-kde-alt.sh) | Termux | Inicia o KDE pelo método alternativo (`-xstartup`), caso o principal falhe |
-| [`scripts/stop-kde.sh`](scripts/stop-kde.sh) | Termux | Encerra o desktop e libera memória |
+```bash
+./lx dev              # nos dois: Termux e Ubuntu
+./lx dev termux       # só no Termux
+./lx dev --no-claude  # sem o Claude Code
+```
+
+Instala em ambos: **zsh + Oh My Zsh** (tema `darkblood`), **NvChad**, **tmux**,
+**git**, **btop**, **bat**, **fzf**, **lazygit**, **fastfetch** e **Claude Code**.
+
+Dois detalhes que o script resolve por você:
+
+- O Ubuntu 24.04 traz o Neovim 0.9.5, mas o **NvChad exige 0.10+** — então o
+  Neovim é instalado do tarball oficial, não do apt.
+- O **Claude Code** não roda no Termux nativo (é um binário glibc; o Android usa
+  bionic libc). Ele é instalado **dentro do Ubuntu**, e o comando `claude` fica
+  disponível no Termux através de um wrapper que executa lá — transparente.
+
+---
+
+## Documentação
+
+| Doc | Assunto |
+|-----|---------|
+| [pré-requisitos](docs/01-pre-requisitos.md) | apps e opções do Android — **leia antes de tudo** |
+| [instalação](docs/02-instalacao.md) | o passo a passo detalhado |
+| [uso diário](docs/03-uso-diario.md) | iniciar, parar, arquivos, atalhos |
+| [solução de problemas](docs/04-solucao-de-problemas.md) | quando algo dá errado |
+| [dicas de desempenho](docs/05-dicas-desempenho.md) | deixar mais leve, alternativas |
+| [monitor externo](docs/06-monitor-externo.md) | hub USB-C, HDMI, DeX — virar um computador |
+| [aceleração de GPU](docs/07-aceleracao-gpu.md) | Turnip/Adreno, o maior ganho do projeto |
 
 ---
 

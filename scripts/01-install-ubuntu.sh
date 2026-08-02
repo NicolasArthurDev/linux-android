@@ -1,39 +1,25 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 #
-# 01-install-ubuntu.sh
-# Roda NO TERMUX.
-# Instala o Ubuntu via proot-distro.
+# 01-install-ubuntu.sh — atalho de compatibilidade.
 #
-set -e
+# Toda a lógica do projeto agora vive num script único, o './lx' na raiz do
+# repositório. Este arquivo existe só para não quebrar quem já usava os
+# scripts separados, e apenas repassa a chamada.
+#
+# Equivalente moderno:  ./lx setup
+#
+# Instalava o Ubuntu; hoje faz parte do 'lx setup'.
+#
+set -euo pipefail
 
-DISTRO="ubuntu"
-ROOTFS="${PREFIX}/var/lib/proot-distro/installed-rootfs/${DISTRO}"
+DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+LX="$DIR/lx"
 
-# Nota: NÃO dá para detectar isso com `proot-distro list | grep`. A saída do
-# list é multi-linha ("Alias: ubuntu" / "Status: installed"), então qualquer
-# grep de linha única falha silenciosamente. Checar o rootfs é confiável.
-if [ -d "${ROOTFS}" ]; then
-    echo "==> Ubuntu já parece estar instalado."
-    echo "    Para reinstalar do zero: proot-distro remove ${DISTRO}"
-else
-    echo "==> Instalando o Ubuntu (pode demorar alguns minutos)..."
-    proot-distro install "${DISTRO}"
+if [ ! -x "$LX" ]; then
+    echo "erro: não encontrei o 'lx' em $LX" >&2
+    echo "      atualize o repositório: git pull" >&2
+    exit 1
 fi
 
-cat <<'MSG'
-
-============================================================
- Ubuntu instalado!
-
- Agora entre no Ubuntu e instale o KDE:
-
-     proot-distro login ubuntu
-     # (dentro do Ubuntu)
-     apt update && apt install -y wget
-     wget https://raw.githubusercontent.com/NicolasArthurDev/linux-android/main/scripts/02-setup-kde.sh
-     chmod +x 02-setup-kde.sh
-     ./02-setup-kde.sh
-
- Veja docs/02-instalacao.md para os detalhes.
-============================================================
-MSG
+echo "nota: este script agora é só um atalho para './lx setup'" >&2
+exec "$LX" setup "$@"

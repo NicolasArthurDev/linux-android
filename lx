@@ -1,0 +1,1191 @@
+#!/usr/bin/env bash
+#
+#  lx — gerenciador único do projeto linux-android
+#
+#  Um script para tudo: instalar, iniciar, parar, diagnosticar e configurar
+#  o ambiente Linux com KDE no Android, e o ambiente de desenvolvimento.
+#
+#  Uso:
+#      ./lx                 menu interativo
+#      ./lx <comando>       execução direta
+#      ./lx help            lista os comandos
+#
+#  O script se adapta ao lugar onde está rodando (Termux ou dentro do Ubuntu)
+#  e, quando precisa, se copia para dentro do Ubuntu e se re-invoca lá.
+#
+#  Se o shebang falhar no Termux, rode como:  bash lx <comando>
+#
+set -uo pipefail
+
+readonly LX_VERSION="1.0.0"
+readonly REPO_URL="https://github.com/NicolasArthurDev/linux-android"
+readonly DISTRO="ubuntu"
+readonly DISPLAY_NUM=":0"
+
+# Versões fixadas onde o repositório da distro não serve (ver comentários no uso)
+readonly MESA_REPO="lfdevs/mesa-for-android-container"
+
+# ===========================================================================
+#  Contexto: onde estamos rodando?
+# ===========================================================================
+
+detect_context() {
+    if [ -n "${PREFIX:-}" ] && [ -d "/data/data/com.termux/files/usr" ]; then
+        echo "termux"
+    elif [ -f /etc/os-release ] && grep -qi ubuntu /etc/os-release; then
+        echo "ubuntu"
+    else
+        echo "desconhecido"
+    fi
+}
+
+readonly CTX="$(detect_context)"
+
+if [ "$CTX" = "termux" ]; then
+    readonly ROOTFS="${PREFIX}/var/lib/proot-distro/installed-rootfs/${DISTRO}"
+    STATE_DIR="${LX_STATE_DIR:-${PREFIX}/var/lib/lx}"
+else
+    readonly ROOTFS=""
+    STATE_DIR="${LX_STATE_DIR:-/var/lib/lx}"
+fi
+STATE_FILE="${STATE_DIR}/state"
+
+# ===========================================================================
+#  Saída na tela
+# ===========================================================================
+
+if [ -t 1 ] && [ "${NO_COLOR:-}" = "" ]; then
+    C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'
+    C_RED=$'\033[31m';  C_GRN=$'\033[32m'; C_YEL=$'\033[33m'
+    C_BLU=$'\033[34m';  C_CYN=$'\033[36m'
+else
+    C_RESET=""; C_BOLD=""; C_DIM=""
+    C_RED=""; C_GRN=""; C_YEL=""; C_BLU=""; C_CYN=""
+fi
+
+say()   { printf '%s\n' "$*"; }
+step()  { printf '%s==>%s %s\n' "$C_BLU$C_BOLD" "$C_RESET" "$*"; }
+ok()    { printf '%s  ok%s %s\n' "$C_GRN" "$C_RESET" "$*"; }
+warn()  { printf '%s  !!%s %s\n' "$C_YEL" "$C_RESET" "$*" >&2; }
+err()   { printf '%s ERRO%s %s\n' "$C_RED$C_BOLD" "$C_RESET" "$*" >&2; }
+info()  { printf '%s     %s%s\n' "$C_DIM" "$*" "$C_RESET"; }
+die()   { err "$*"; exit 1; }
+
+header() {
+    printf '\n%s%s%s\n' "$C_BOLD$C_CYN" "$*" "$C_RESET"
+    printf '%s%s%s\n' "$C_DIM" "$(printf '─%.0s' $(seq 1 ${#1}))" "$C_RESET"
+}
+
+confirm() {
+    local prompt="${1:-Continuar?}" reply
+    if [ ! -t 0 ]; then return 0; fi   # não-interativo: assume sim
+    printf '%s%s%s [s/N] ' "$C_BOLD" "$prompt" "$C_RESET"
+    read -r reply
+    case "$reply" in [sSyY]*) return 0 ;; *) return 1 ;; esac
+}
+
+# ===========================================================================
+#  Estado — o que já foi feito
+# ===========================================================================
+
+state_init() { mkdir -p "$STATE_DIR" 2>/dev/null || true; touch "$STATE_FILE" 2>/dev/null || true; }
+state_has()  { [ -f "$STATE_FILE" ] && grep -qxF "$1" "$STATE_FILE" 2>/dev/null; }
+
+# O estado é conveniência, não fonte da verdade: 'setup' e 'doctor' checam o
+# sistema de verdade (diretórios, binários). Se não der para gravar, seguimos
+# em silêncio em vez de poluir a saída com erros.
+state_set()  {
+    state_init
+    state_has "$1" && return 0
+    echo "$1" >> "$STATE_FILE" 2>/dev/null || true
+}
+state_clear(){
+    state_init
+    [ -f "$STATE_FILE" ] || return 0
+    grep -vxF "$1" "$STATE_FILE" > "$STATE_FILE.tmp" 2>/dev/null || true
+    mv -f "$STATE_FILE.tmp" "$STATE_FILE" 2>/dev/null || rm -f "$STATE_FILE.tmp" 2>/dev/null || true
+}
+
+# ===========================================================================
+#  Utilidades
+# ===========================================================================
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+require_termux() {
+    [ "$CTX" = "termux" ] || die "'$1' precisa rodar no Termux (contexto atual: $CTX)."
+}
+
+require_ubuntu_installed() {
+    [ -d "$ROOTFS" ] || die "Ubuntu não está instalado. Rode primeiro: ./lx setup"
+}
+
+# Copia este script para dentro do Ubuntu e o executa lá.
+run_in_ubuntu() {
+    require_termux "run_in_ubuntu"
+    require_ubuntu_installed
+    local self="${BASH_SOURCE[0]}"
+    [ -f "$self" ] || die "não consegui localizar o próprio script para copiar."
+    install -m 755 "$self" "${ROOTFS}/root/lx" \
+        || die "não consegui copiar o lx para dentro do Ubuntu."
+    proot-distro login "$DISTRO" --shared-tmp -- /root/lx "$@"
+}
+
+# Baixa uma URL para um arquivo. Usa curl ou wget, o que existir.
+fetch() {
+    local url="$1" out="$2"
+    if have curl; then
+        curl -fL --progress-bar -o "$out" "$url"
+    elif have wget; then
+        wget -q --show-progress -O "$out" "$url"
+    else
+        die "preciso de 'curl' ou 'wget' para baixar arquivos."
+    fi
+}
+
+# Descobre a URL de um asset no release mais recente de um repo do GitHub.
+gh_latest_asset() {
+    local repo="$1" pattern="$2" api="https://api.github.com/repos/$1/releases/latest"
+    local body
+    if have curl;   then body="$(curl -fsSL "$api")"
+    elif have wget; then body="$(wget -qO- "$api")"
+    else return 1; fi
+    printf '%s' "$body" | grep -o "https://[^\"]*${pattern}" | head -n 1
+}
+
+# ===========================================================================
+#  Verificações do lado Android (não dá para automatizar — só detectar/guiar)
+# ===========================================================================
+
+check_x11_app() {
+    require_termux "check_x11_app"
+    pm list packages 2>/dev/null | grep -q "com.termux.x11"
+}
+
+check_api_app() {
+    require_termux "check_api_app"
+    pm list packages 2>/dev/null | grep -q "com.termux.api"
+}
+
+check_phantom_killer() {
+    # Retorna 0 se a restrição parece DESATIVADA (bom), 1 se ativa/desconhecida.
+    local v
+    v="$(settings get global settings_enable_monitor_phantom_procs 2>/dev/null)"
+    [ "$v" = "false" ] && return 0
+    v="$(/system/bin/device_config get activity_manager max_phantom_processes 2>/dev/null)"
+    case "$v" in
+        ''|null|'') return 1 ;;
+        *) [ "$v" -gt 1000 ] 2>/dev/null && return 0 || return 1 ;;
+    esac
+}
+
+# ===========================================================================
+#  COMANDO: doctor
+# ===========================================================================
+
+cmd_doctor() {
+    header "Diagnóstico"
+
+    local problems=0
+
+    if [ "$CTX" != "termux" ]; then
+        warn "rodando fora do Termux (contexto: $CTX) — checagens limitadas."
+    else
+        step "Apps do Android"
+        if check_x11_app; then ok "Termux:X11 instalado"
+        else err "Termux:X11 NÃO instalado — é obrigatório (é a 'tela')"
+             info "https://github.com/termux/termux-x11/releases"
+             problems=$((problems+1)); fi
+
+        if check_api_app; then ok "Termux:API instalado"
+        else warn "Termux:API não instalado — sem ele o wake-lock não funciona"
+             info "e o desktop cai quando você troca de app"
+             problems=$((problems+1)); fi
+
+        step "Restrição de processos filhos (Phantom Process Killer)"
+        if check_phantom_killer; then
+            ok "restrição desativada"
+        else
+            err "restrição PROVAVELMENTE ATIVA — causa nº1 de o desktop morrer sozinho"
+            info "Opções de desenvolvedor -> 'Desativar restrições de processos filhos'"
+            info "e reinicie o celular. Detalhes: docs/01-pre-requisitos.md"
+            problems=$((problems+1))
+        fi
+
+        step "Pacotes do Termux"
+        local p
+        for p in proot-distro termux-x11 pulseaudio; do
+            if have "$p"; then ok "$p"
+            else err "$p ausente"; problems=$((problems+1)); fi
+        done
+        have virgl_test_server_android && ok "virglrenderer-android (GPU alternativa)" \
+            || info "virglrenderer-android ausente (opcional)"
+
+        step "Ubuntu"
+        if [ -d "$ROOTFS" ]; then
+            ok "instalado em $ROOTFS"
+            if [ -x "${ROOTFS}/usr/bin/startplasma-x11" ]; then ok "KDE Plasma instalado"
+            else err "KDE Plasma NÃO instalado — rode: ./lx setup"; problems=$((problems+1)); fi
+
+            if [ -f "${ROOTFS}/etc/linux-android-gpu.conf" ]; then
+                ok "aceleração de GPU configurada (Turnip)"
+            else
+                warn "GPU não configurada — o desktop vai rodar na CPU (lento)"
+                info "rode: ./lx gpu"
+                problems=$((problems+1))
+            fi
+        else
+            err "Ubuntu não instalado — rode: ./lx setup"
+            problems=$((problems+1))
+        fi
+
+        step "Sessão em execução"
+        pgrep -f "[t]ermux-x11" >/dev/null 2>&1 && ok "servidor X11 rodando" \
+            || info "servidor X11 parado"
+        pgrep -f "[s]tartplasma-x11" >/dev/null 2>&1 && ok "KDE rodando" \
+            || info "KDE parado"
+    fi
+
+    echo
+    if [ "$problems" -eq 0 ]; then
+        printf '%s Tudo certo.%s\n' "$C_GRN$C_BOLD" "$C_RESET"
+    else
+        printf '%s %d ponto(s) de atenção acima.%s\n' "$C_YEL$C_BOLD" "$problems" "$C_RESET"
+    fi
+    return 0
+}
+
+# ===========================================================================
+#  COMANDO: status
+# ===========================================================================
+
+cmd_status() {
+    header "Status do linux-android (lx v${LX_VERSION})"
+    say "Contexto: ${C_BOLD}${CTX}${C_RESET}"
+    echo
+
+    local -a steps=(
+        "termux:Termux preparado (pacotes base)"
+        "ubuntu:Ubuntu instalado"
+        "kde:KDE Plasma instalado"
+        "gpu:Aceleração de GPU ativada"
+        "dev-termux:Ambiente dev no Termux"
+        "dev-ubuntu:Ambiente dev no Ubuntu"
+    )
+    local entry key label
+    for entry in "${steps[@]}"; do
+        key="${entry%%:*}"; label="${entry#*:}"
+        if state_has "$key"; then
+            printf '  %s[x]%s %s\n' "$C_GRN" "$C_RESET" "$label"
+        else
+            printf '  %s[ ]%s %s%s%s\n' "$C_DIM" "$C_RESET" "$C_DIM" "$label" "$C_RESET"
+        fi
+    done
+
+    echo
+    info "'./lx setup' continua de onde parou · './lx doctor' diagnostica"
+}
+
+# ===========================================================================
+#  Instalação: Termux
+# ===========================================================================
+
+install_termux_base() {
+    require_termux "setup"
+    header "1/4 — Preparando o Termux"
+
+    step "Atualizando pacotes..."
+    pkg update -y  || warn "pkg update retornou erro (seguindo)"
+    pkg upgrade -y || warn "pkg upgrade retornou erro (seguindo)"
+
+    step "Habilitando o repositório x11..."
+    pkg install -y x11-repo || die "não consegui habilitar o x11-repo."
+    # O índice do repo recém-habilitado precisa ser lido antes de instalar dele.
+    pkg update -y || true
+
+    step "Instalando proot-distro, Termux-X11, PulseAudio e utilitários..."
+    pkg install -y proot-distro termux-x11-nightly pulseaudio git wget curl nano termux-api \
+        || die "falha ao instalar os pacotes base."
+
+    step "Instalando suporte a GPU alternativo (virgl)..."
+    pkg install -y virglrenderer-android \
+        || info "virgl indisponível — sem problema, o caminho principal é o Turnip."
+
+    step "Configurando acesso ao armazenamento..."
+    info "aceite a permissão na tela, se aparecer"
+    termux-setup-storage || true
+
+    state_set termux
+    ok "Termux preparado."
+}
+
+install_ubuntu() {
+    require_termux "setup"
+    header "2/4 — Instalando o Ubuntu"
+
+    if [ -d "$ROOTFS" ]; then
+        ok "Ubuntu já instalado."
+    else
+        step "Baixando e instalando (pode demorar bastante)..."
+        proot-distro install "$DISTRO" || die "falha ao instalar o Ubuntu."
+        ok "Ubuntu instalado."
+    fi
+    state_set ubuntu
+}
+
+# ===========================================================================
+#  Instalação: KDE (executa DENTRO do Ubuntu)
+# ===========================================================================
+
+install_kde_inside() {
+    [ "$CTX" = "ubuntu" ] || die "install_kde_inside só roda dentro do Ubuntu."
+    header "3/4 — Instalando o KDE Plasma"
+
+    export DEBIAN_FRONTEND=noninteractive
+
+    step "Atualizando o Ubuntu..."
+    apt update || warn "apt update com erro (seguindo)"
+    apt upgrade -y || warn "apt upgrade com erro (seguindo)"
+
+    step "Instalando o KDE Plasma e dependências (demorado)..."
+    # kde-plasma-desktop  = base do Plasma, mais enxuto que o kubuntu-desktop
+    # dbus-x11            = necessário para iniciar via dbus-launch
+    # libgl1-mesa-dri     = renderização por software (fallback sem GPU)
+    # x11-xserver-utils   = xrandr, para ajustar resolução no monitor externo
+    apt install -y \
+        kde-plasma-desktop dbus-x11 \
+        libgl1-mesa-dri mesa-utils x11-xserver-utils \
+        konsole dolphin kate \
+        sudo nano curl wget \
+        pulseaudio-utils \
+        fonts-noto fonts-noto-cjk \
+        locales \
+        || die "falha ao instalar o KDE."
+
+    step "Configurando locale..."
+    locale-gen en_US.UTF-8 pt_BR.UTF-8 || true
+    update-locale LANG=pt_BR.UTF-8 || true
+
+    step "Ajustando o KDE para proot..."
+    mkdir -p /root/.config
+    # Sem GPU o compositor pisca/trava. Com GPU dá para reativar (docs/07).
+    cat > /root/.config/kwinrc <<'EOF'
+[Compositing]
+Enabled=false
+EOF
+    # O bloqueio de tela não funciona em proot e prende a sessão.
+    cat > /root/.config/kscreenlockerrc <<'EOF'
+[Daemon]
+Autolock=false
+LockOnResume=false
+EOF
+
+    state_set kde
+    ok "KDE Plasma instalado."
+}
+
+# ===========================================================================
+#  Instalação: GPU (executa DENTRO do Ubuntu)
+# ===========================================================================
+
+install_gpu_inside() {
+    [ "$CTX" = "ubuntu" ] || die "install_gpu_inside só roda dentro do Ubuntu."
+    header "4/4 — Aceleração de GPU (Turnip / Adreno)"
+
+    export DEBIAN_FRONTEND=noninteractive
+
+    [ "$(uname -m)" = "aarch64" ] || die "este Mesa é só para arm64 (detectado: $(uname -m))."
+
+    # shellcheck disable=SC1091
+    . /etc/os-release
+    local suffix
+    case "${VERSION_CODENAME:-}" in
+        noble)    suffix="ubuntu_noble_arm64"    ;;  # 24.04 LTS
+        questing) suffix="ubuntu_questing_arm64" ;;  # 25.10
+        resolute) suffix="ubuntu_resolute_arm64" ;;  # 26.04 LTS
+        *)  warn "sem build de Mesa para '${VERSION_CODENAME:-?}'."
+            info "use o caminho alternativo: ./lx start --gpu virgl"
+            return 1 ;;
+    esac
+
+    step "Ubuntu ${VERSION_ID:-?} (${VERSION_CODENAME}) — build '${suffix}'"
+
+    have curl || apt install -y curl ca-certificates >/dev/null 2>&1 || true
+    apt install -y mesa-utils vulkan-tools >/dev/null 2>&1 || true
+
+    step "Procurando o release mais recente..."
+    local url
+    url="$(gh_latest_asset "$MESA_REPO" "_${suffix}\.tar\.gz")"
+    [ -n "$url" ] || { err "não achei o pacote '${suffix}'."
+                       info "baixe manualmente: https://github.com/${MESA_REPO}/releases"
+                       return 1; }
+    info "$url"
+
+    local tmp; tmp="$(mktemp /tmp/mesa-XXXXXX.tar.gz)"
+    # shellcheck disable=SC2064
+    trap "rm -f '$tmp'" RETURN
+
+    step "Baixando (~11 MB)..."
+    fetch "$url" "$tmp" || { err "download falhou."; return 1; }
+
+    step "Extraindo e atualizando o linker..."
+    tar -zxf "$tmp" -C / || { err "extração falhou."; return 1; }
+    ldconfig
+
+    # Marcador lido pelo 'lx start' no lado do Termux para ativar a GPU sozinho.
+    cat > /etc/linux-android-gpu.conf <<'EOF'
+# Gerado por 'lx gpu'
+GPU_MODE=turnip
+EOF
+
+    state_set gpu
+    ok "GPU ativada. Confira com: glxinfo -B  (dentro do KDE)"
+}
+
+# ===========================================================================
+#  Ambiente de desenvolvimento
+# ===========================================================================
+
+setup_ohmyzsh() {
+    local home="$1"
+    step "Oh My Zsh + tema darkblood"
+
+    if [ -d "$home/.oh-my-zsh" ]; then
+        ok "Oh My Zsh já instalado"
+    else
+        RUNZSH=no CHSH=no KEEP_ZSHRC=no \
+            sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" \
+            "" --unattended || { warn "falha ao instalar o Oh My Zsh"; return 1; }
+    fi
+
+    # darkblood é um tema que já vem com o Oh My Zsh — não precisa baixar nada.
+    if [ -f "$home/.zshrc" ]; then
+        sed -i 's/^ZSH_THEME=.*/ZSH_THEME="darkblood"/' "$home/.zshrc"
+        grep -q '^ZSH_THEME=' "$home/.zshrc" || echo 'ZSH_THEME="darkblood"' >> "$home/.zshrc"
+        ok "tema darkblood configurado"
+    fi
+}
+
+append_shell_rc() {
+    # Acrescenta um bloco idempotente aos rc do bash e do zsh.
+    local home="$1" marker="# >>> lx dev >>>" body="$2" f
+    for f in "$home/.zshrc" "$home/.bashrc"; do
+        [ -f "$f" ] || continue
+        grep -qF "$marker" "$f" && continue
+        {
+            echo ""
+            echo "$marker"
+            echo "$body"
+            echo "# <<< lx dev <<<"
+        } >> "$f"
+    done
+}
+
+setup_nvchad() {
+    local home="$1"
+    step "NvChad (configuração do Neovim)"
+
+    if [ -d "$home/.config/nvim" ]; then
+        if [ -d "$home/.config/nvim/lua/chadrc.lua" ] || [ -f "$home/.config/nvim/lua/chadrc.lua" ]; then
+            ok "NvChad já instalado"; return 0
+        fi
+        local bak="$home/.config/nvim.bak.$$"
+        warn "já existe uma config do Neovim — movendo para $bak"
+        mv "$home/.config/nvim" "$bak"
+    fi
+
+    mkdir -p "$home/.config"
+    git clone -q --depth 1 https://github.com/NvChad/starter "$home/.config/nvim" \
+        || { warn "falha ao clonar o NvChad"; return 1; }
+    rm -rf "$home/.config/nvim/.git"
+    ok "NvChad instalado — na primeira execução do 'nvim' ele baixa os plugins"
+}
+
+dev_termux() {
+    require_termux "dev"
+    header "Ambiente de desenvolvimento — Termux"
+
+    step "Instalando pacotes"
+    # Estes existem todos nos repositórios do Termux.
+    pkg install -y \
+        zsh git tmux btop bat fzf lazygit \
+        neovim nodejs ripgrep fd \
+        clang make python openssh \
+        || warn "algum pacote falhou (seguindo)"
+
+    # fastfetch substitui o neofetch, que está descontinuado desde 2024.
+    if pkg install -y fastfetch 2>/dev/null; then
+        ok "fastfetch instalado"
+    else
+        pkg install -y neofetch 2>/dev/null && ok "neofetch instalado" \
+            || warn "nem fastfetch nem neofetch disponíveis"
+    fi
+
+    setup_ohmyzsh "$HOME"
+    setup_nvchad  "$HOME"
+
+    step "Aliases e configurações"
+    append_shell_rc "$HOME" '
+# bat: no Termux o binário já se chama "bat"
+alias cat="bat --paging=never"
+alias ls="ls --color=auto"
+alias ll="ls -lah"
+alias lg="lazygit"
+alias vim="nvim"
+alias v="nvim"
+
+# fzf
+[ -f "$PREFIX/share/fzf/key-bindings.zsh" ] && source "$PREFIX/share/fzf/key-bindings.zsh" 2>/dev/null
+[ -f "$PREFIX/share/fzf/completion.zsh" ]   && source "$PREFIX/share/fzf/completion.zsh"   2>/dev/null
+
+# claude: roda dentro do Ubuntu (glibc), ver "lx dev"
+'
+
+    setup_tmux_conf "$HOME"
+    [ -n "${LX_NO_CLAUDE:-}" ] || install_claude_wrapper
+
+    step "Shell padrão"
+    if [ "$(basename "${SHELL:-}")" != "zsh" ]; then
+        if chsh -s zsh 2>/dev/null; then ok "zsh definido como shell padrão"
+        else info "não consegui trocar o shell — rode manualmente: chsh -s zsh"; fi
+    else
+        ok "zsh já é o shell padrão"
+    fi
+
+    state_set dev-termux
+    echo
+    ok "Ambiente dev do Termux pronto. Abra um novo terminal para carregar o zsh."
+}
+
+setup_tmux_conf() {
+    local home="$1" f="$1/.tmux.conf"
+    [ -f "$f" ] && { ok "~/.tmux.conf já existe (não sobrescrevi)"; return 0; }
+    cat > "$f" <<'EOF'
+# Gerado por 'lx dev' — ajuste à vontade.
+set -g mouse on
+set -g base-index 1
+setw -g pane-base-index 1
+set -g history-limit 10000
+set -g default-terminal "screen-256color"
+set -sg escape-time 10
+
+# Dividir painéis mantendo o diretório atual
+bind | split-window -h -c "#{pane_current_path}"
+bind - split-window -v -c "#{pane_current_path}"
+
+# Navegar entre painéis com Alt+setas, sem prefixo
+bind -n M-Left  select-pane -L
+bind -n M-Right select-pane -R
+bind -n M-Up    select-pane -U
+bind -n M-Down  select-pane -D
+EOF
+    ok "~/.tmux.conf criado"
+}
+
+# Wrapper no Termux que executa o Claude Code dentro do Ubuntu.
+#
+# Por quê: o Claude Code é distribuído como binário linkado com glibc. O Android
+# usa bionic libc, então a instalação nativa no Termux falha com
+# "Unsupported platform: android arm64". Dentro do proot Ubuntu é glibc de
+# verdade e ele roda normalmente. O wrapper faz isso ficar transparente:
+# você digita 'claude' no Termux e ele roda no Ubuntu, no mesmo diretório.
+install_claude_wrapper() {
+    require_termux "install_claude_wrapper"
+    local bin="${PREFIX}/bin/claude"
+
+    step "Wrapper do Claude Code"
+    cat > "$bin" <<'WRAPPER'
+#!/usr/bin/env bash
+# Executa o Claude Code dentro do Ubuntu (proot), no diretório atual.
+# Gerado por 'lx dev'.
+set -euo pipefail
+
+DISTRO="ubuntu"
+ROOTFS="${PREFIX}/var/lib/proot-distro/installed-rootfs/${DISTRO}"
+
+if [ ! -d "$ROOTFS" ]; then
+    echo "claude: o Ubuntu não está instalado. Rode: lx setup" >&2
+    exit 1
+fi
+if [ ! -x "${ROOTFS}/usr/bin/claude" ] && [ ! -e "${ROOTFS}/usr/local/bin/claude" ] \
+   && [ ! -e "${ROOTFS}/usr/bin/claude" ]; then
+    echo "claude: não encontrado dentro do Ubuntu. Rode: lx dev ubuntu" >&2
+    exit 1
+fi
+
+# Preserva o diretório atual dentro do proot, quando o caminho existir lá.
+cwd="$PWD"
+args=""
+for a in "$@"; do args="$args $(printf '%q' "$a")"; done
+
+exec proot-distro login "$DISTRO" --shared-tmp \
+    --bind "$cwd:$cwd" \
+    -- /bin/bash -lc "cd $(printf '%q' "$cwd") && claude$args"
+WRAPPER
+    chmod +x "$bin"
+    ok "comando 'claude' disponível no Termux (executa no Ubuntu)"
+}
+
+dev_ubuntu_inside() {
+    [ "$CTX" = "ubuntu" ] || die "dev_ubuntu_inside só roda dentro do Ubuntu."
+    header "Ambiente de desenvolvimento — Ubuntu"
+
+    export DEBIAN_FRONTEND=noninteractive
+    local home="${HOME:-/root}"
+
+    step "Instalando pacotes do apt"
+    apt update || warn "apt update com erro (seguindo)"
+    apt install -y \
+        zsh git tmux btop bat fzf ripgrep fd-find \
+        curl wget unzip build-essential \
+        nodejs npm python3 python3-pip \
+        || warn "algum pacote falhou (seguindo)"
+
+    # No Debian/Ubuntu o binário do bat se chama 'batcat' (conflito de nome com
+    # outro pacote antigo). Criamos um link para 'bat' funcionar como esperado.
+    if have batcat && ! have bat; then
+        mkdir -p /usr/local/bin && ln -sf "$(command -v batcat)" /usr/local/bin/bat
+        ok "link bat -> batcat criado"
+    fi
+    if have fdfind && ! have fd; then
+        mkdir -p /usr/local/bin && ln -sf "$(command -v fdfind)" /usr/local/bin/fd
+    fi
+
+    # ---- Neovim -----------------------------------------------------------
+    # O Ubuntu 24.04 traz Neovim 0.9.5, mas o NvChad exige 0.10+. Por isso
+    # instalamos o tarball oficial em vez de usar o apt.
+    step "Neovim (tarball oficial — o do apt é antigo demais para o NvChad)"
+    local nv_url nv_tmp
+    nv_url="$(gh_latest_asset neovim/neovim 'nvim-linux-arm64\.tar\.gz')"
+    if [ -n "$nv_url" ]; then
+        nv_tmp="$(mktemp /tmp/nvim-XXXXXX.tar.gz)"
+        if fetch "$nv_url" "$nv_tmp"; then
+            rm -rf /opt/nvim
+            mkdir -p /opt/nvim
+            tar -zxf "$nv_tmp" -C /opt/nvim --strip-components=1
+            ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim
+            ok "Neovim $(/usr/local/bin/nvim --version | head -n1 | awk '{print $2}') instalado"
+        else
+            warn "download do Neovim falhou — caindo para o apt"
+            apt install -y neovim || true
+        fi
+        rm -f "$nv_tmp"
+    else
+        warn "não achei o release do Neovim — caindo para o apt"
+        apt install -y neovim || true
+    fi
+
+    # ---- lazygit ----------------------------------------------------------
+    # Não está nos repositórios do Ubuntu 24.04; instalamos o binário oficial.
+    step "lazygit (binário oficial — não está no apt do 24.04)"
+    if have lazygit; then
+        ok "lazygit já instalado"
+    else
+        local lg_url lg_tmp
+        lg_url="$(gh_latest_asset jesseduffield/lazygit 'linux_arm64\.tar\.gz')"
+        if [ -n "$lg_url" ]; then
+            lg_tmp="$(mktemp -d /tmp/lazygit-XXXXXX)"
+            if fetch "$lg_url" "$lg_tmp/lg.tar.gz"; then
+                tar -zxf "$lg_tmp/lg.tar.gz" -C "$lg_tmp" lazygit 2>/dev/null \
+                    && install -m 755 "$lg_tmp/lazygit" /usr/local/bin/lazygit \
+                    && ok "lazygit instalado"
+            fi
+            rm -rf "$lg_tmp"
+        else
+            warn "não achei o release do lazygit"
+        fi
+    fi
+
+    # ---- fastfetch --------------------------------------------------------
+    step "fastfetch (sucessor do neofetch, descontinuado em 2024)"
+    if have fastfetch; then
+        ok "fastfetch já instalado"
+    elif apt install -y fastfetch 2>/dev/null; then
+        ok "fastfetch via apt"
+    else
+        local ff_url ff_tmp
+        ff_url="$(gh_latest_asset fastfetch-cli/fastfetch 'linux-aarch64\.deb')"
+        if [ -n "$ff_url" ]; then
+            ff_tmp="$(mktemp /tmp/fastfetch-XXXXXX.deb)"
+            if fetch "$ff_url" "$ff_tmp"; then
+                apt install -y "$ff_tmp" >/dev/null 2>&1 || dpkg -i "$ff_tmp" >/dev/null 2>&1 || true
+                have fastfetch && ok "fastfetch instalado" || warn "fastfetch falhou"
+            fi
+            rm -f "$ff_tmp"
+        fi
+        have fastfetch || { apt install -y neofetch 2>/dev/null && ok "neofetch (fallback)"; }
+    fi
+
+    # ---- Claude Code ------------------------------------------------------
+    step "Claude Code"
+    if [ -n "${LX_NO_CLAUDE:-}" ]; then
+        info "pulado (--no-claude)"
+    elif have claude; then
+        ok "Claude Code já instalado"
+    elif have npm; then
+        # Aqui é glibc de verdade, então a instalação oficial funciona —
+        # ao contrário do Termux nativo (bionic libc).
+        npm install -g @anthropic-ai/claude-code \
+            && ok "Claude Code instalado" \
+            || warn "falha ao instalar o Claude Code (rode 'npm install -g @anthropic-ai/claude-code' à mão)"
+    else
+        warn "npm não disponível — Claude Code não instalado"
+    fi
+
+    setup_ohmyzsh "$home"
+    setup_nvchad  "$home"
+    setup_tmux_conf "$home"
+
+    step "Aliases e configurações"
+    append_shell_rc "$home" '
+alias cat="bat --paging=never"
+alias ls="ls --color=auto"
+alias ll="ls -lah"
+alias lg="lazygit"
+alias vim="nvim"
+alias v="nvim"
+export PATH="/opt/nvim/bin:/usr/local/bin:$PATH"
+
+# fzf
+[ -f /usr/share/doc/fzf/examples/key-bindings.zsh ] && source /usr/share/doc/fzf/examples/key-bindings.zsh 2>/dev/null
+[ -f /usr/share/doc/fzf/examples/completion.zsh ]   && source /usr/share/doc/fzf/examples/completion.zsh   2>/dev/null
+'
+
+    step "Shell padrão"
+    chsh -s "$(command -v zsh)" root 2>/dev/null && ok "zsh definido para o root" \
+        || info "não consegui trocar o shell (rode: chsh -s \$(which zsh))"
+
+    state_set dev-ubuntu
+    echo
+    ok "Ambiente dev do Ubuntu pronto."
+}
+
+cmd_dev() {
+    local target="both"
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --no-claude) export LX_NO_CLAUDE=1; shift ;;
+            termux|ubuntu|both) target="$1"; shift ;;
+            *) die "argumento inválido em 'dev': $1 (use: termux | ubuntu | both | --no-claude)" ;;
+        esac
+    done
+
+    case "$target" in
+        termux)
+            require_termux "dev termux"
+            dev_termux
+            ;;
+        ubuntu)
+            if [ "$CTX" = "ubuntu" ]; then
+                dev_ubuntu_inside
+            else
+                require_termux "dev ubuntu"
+                require_ubuntu_installed
+                run_in_ubuntu dev ubuntu
+                state_set dev-ubuntu
+            fi
+            ;;
+        both|"")
+            require_termux "dev"
+            dev_termux
+            require_ubuntu_installed
+            run_in_ubuntu dev ubuntu
+            state_set dev-ubuntu
+            ;;
+        *)
+            die "alvo inválido: '$target'. Use: termux | ubuntu | both"
+            ;;
+    esac
+}
+
+# ===========================================================================
+#  COMANDO: setup
+# ===========================================================================
+
+cmd_setup() {
+    require_termux "setup"
+    header "Instalação completa"
+    info "Cada etapa é pulada se já estiver feita. Pode rodar de novo sem medo."
+    echo
+
+    state_has termux || install_termux_base
+    state_has ubuntu || install_ubuntu
+
+    if [ -x "${ROOTFS}/usr/bin/startplasma-x11" ]; then
+        state_set kde
+        ok "KDE já instalado."
+    else
+        run_in_ubuntu setup-kde || die "falha ao instalar o KDE."
+        state_set kde
+    fi
+
+    if [ -f "${ROOTFS}/etc/linux-android-gpu.conf" ]; then
+        state_set gpu
+        ok "GPU já configurada."
+    else
+        run_in_ubuntu setup-gpu && state_set gpu \
+            || warn "GPU não configurada — o desktop vai usar a CPU. Rode './lx gpu' depois."
+    fi
+
+    echo
+    header "Pronto"
+    say "  ./lx doctor    conferir se falta algo do lado do Android"
+    say "  ./lx dev       instalar o ambiente de desenvolvimento"
+    say "  ./lx start     iniciar o desktop"
+    echo
+    cmd_doctor
+}
+
+# ===========================================================================
+#  COMANDO: start / stop
+# ===========================================================================
+
+resolve_gpu_mode() {
+    local mode="${1:-auto}"
+    if [ "$mode" = "auto" ]; then
+        if [ -f "${ROOTFS}/etc/linux-android-gpu.conf" ] &&
+           grep -q "GPU_MODE=turnip" "${ROOTFS}/etc/linux-android-gpu.conf" 2>/dev/null; then
+            mode="turnip"
+        else
+            mode="software"
+        fi
+    fi
+    case "$mode" in
+        turnip|virgl|software) echo "$mode" ;;
+        *) return 1 ;;
+    esac
+}
+
+cmd_start() {
+    require_termux "start"
+    require_ubuntu_installed
+
+    local gpu_mode="auto" x11_extra="${X11_EXTRA:-}" use_alt=0
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --gpu)   gpu_mode="${2:-}"; shift 2 ;;
+            --alt)   use_alt=1; shift ;;
+            --extra) x11_extra="${2:-}"; shift 2 ;;
+            *) die "opção desconhecida em 'start': $1" ;;
+        esac
+    done
+
+    gpu_mode="$(resolve_gpu_mode "$gpu_mode")" \
+        || die "GPU_MODE inválido. Use: auto | turnip | virgl | software"
+
+    header "Iniciando o desktop"
+    say "Renderização: ${C_BOLD}${gpu_mode}${C_RESET}"
+    [ "$gpu_mode" = "software" ] && info "rode './lx gpu' para ativar a GPU (bem mais rápido)"
+
+    step "Encerrando sessões antigas..."
+    stop_everything quiet
+
+    termux-wake-lock 2>/dev/null || warn "wake-lock indisponível (instale o app Termux:API)"
+
+    step "Iniciando o PulseAudio..."
+    pulseaudio --start --exit-idle-time=-1 \
+        --load="module-native-protocol-tcp auth-ip-acl=127.0.0.1 auth-anonymous=1" \
+        || warn "PulseAudio não subiu — o desktop funciona, mas sem áudio"
+
+    if [ "$gpu_mode" = "virgl" ]; then
+        step "Iniciando o servidor virgl..."
+        have virgl_test_server_android \
+            || die "virgl_test_server_android ausente. Rode: pkg install virglrenderer-android"
+        virgl_test_server_android >/dev/null 2>&1 &
+        sleep 1
+    fi
+
+    export XDG_RUNTIME_DIR="${TMPDIR}"
+
+    # O ambiente que roda dentro do Ubuntu é o mesmo nos dois métodos.
+    local inner
+    inner="
+        export DISPLAY=${DISPLAY_NUM}
+        export PULSE_SERVER=127.0.0.1
+        export XDG_RUNTIME_DIR=/tmp/runtime-root
+        mkdir -p \"\$XDG_RUNTIME_DIR\"; chmod 700 \"\$XDG_RUNTIME_DIR\"
+        export QT_QPA_PLATFORM=xcb
+        case '${gpu_mode}' in
+            turnip)
+                export MESA_LOADER_DRIVER_OVERRIDE=kgsl
+                export vblank_mode=3
+                export MESA_VK_WSI_PRESENT_MODE=mailbox
+                ;;
+            virgl)
+                export GALLIUM_DRIVER=virpipe
+                export MESA_GL_VERSION_OVERRIDE=4.0
+                ;;
+            software)
+                export LIBGL_ALWAYS_SOFTWARE=1
+                ;;
+        esac
+        dbus-launch --exit-with-session startplasma-x11
+    "
+
+    if [ "$use_alt" -eq 1 ]; then
+        # Método alternativo: o Termux-X11 sobe o display e já lança o KDE como
+        # cliente via -xstartup. Alguns aparelhos acham isso mais estável.
+        step "Abrindo o app Termux:X11..."
+        am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >/dev/null 2>&1 \
+            || info "abra o app Termux:X11 manualmente"
+        sleep 2
+        step "Iniciando X11 + KDE juntos (-xstartup)..."
+        # shellcheck disable=SC2086
+        termux-x11 "$DISPLAY_NUM" $x11_extra \
+            -xstartup "proot-distro login ${DISTRO} --shared-tmp -- /bin/bash -c $(printf '%q' "$inner")"
+    else
+        step "Iniciando o servidor Termux-X11..."
+        # shellcheck disable=SC2086
+        termux-x11 "$DISPLAY_NUM" $x11_extra >/dev/null 2>&1 &
+        sleep 3
+        step "Abrindo o app Termux:X11..."
+        am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >/dev/null 2>&1 \
+            || info "abra o app Termux:X11 manualmente"
+        sleep 2
+        step "Iniciando o KDE Plasma..."
+        proot-distro login "$DISTRO" --shared-tmp -- /bin/bash -c "$inner"
+    fi
+
+    echo
+    ok "Sessão encerrada. Rode './lx stop' para liberar memória e o wake-lock."
+}
+
+# Encerra tudo. Com "quiet" não imprime cabeçalhos (usado pelo start).
+#
+# Sobre os padrões [x]yz: 'pkill -f' casa contra a linha de comando inteira,
+# então um pkill cujo próprio comando contenha o texto procurado se auto-mata.
+# A forma [p]lasmashell não casa consigo mesma, mas casa com o processo real.
+stop_everything() {
+    local quiet="${1:-}"
+    local p
+    for p in "[s]tartplasma-x11" "[p]lasmashell" "[k]win_x11" "[k]ded" "[k]smserver" \
+             "[d]bus-launch" "[d]bus-daemon"; do
+        pkill -f "$p" 2>/dev/null || true
+    done
+    sleep 1
+    pkill -f "[p]root-distro" 2>/dev/null || true
+    pkill -f "[i]nstalled-rootfs/${DISTRO}" 2>/dev/null || true
+    pkill -f "[v]irgl_test_server" 2>/dev/null || true
+    pkill -f "com.termux.x11" 2>/dev/null || true
+    pkill -f "termux.x11" 2>/dev/null || true
+    pulseaudio --kill 2>/dev/null || true
+    [ "$quiet" = "quiet" ] || true
+}
+
+cmd_stop() {
+    require_termux "stop"
+    header "Encerrando"
+    step "Parando KDE, X11, áudio e proot..."
+    stop_everything
+    termux-wake-unlock 2>/dev/null || true
+    ok "Tudo encerrado. Memória liberada."
+}
+
+cmd_shell() {
+    require_termux "shell"
+    require_ubuntu_installed
+    exec proot-distro login "$DISTRO" --shared-tmp
+}
+
+cmd_gpu() {
+    if [ "$CTX" = "ubuntu" ]; then
+        install_gpu_inside
+    else
+        require_termux "gpu"
+        require_ubuntu_installed
+        run_in_ubuntu setup-gpu && state_set gpu
+    fi
+}
+
+cmd_update() {
+    header "Atualizando"
+    if [ "$CTX" = "termux" ]; then
+        step "Pacotes do Termux..."; pkg update -y && pkg upgrade -y
+        if [ -d "$ROOTFS" ]; then
+            step "Pacotes do Ubuntu..."
+            proot-distro login "$DISTRO" -- /bin/bash -c \
+                "export DEBIAN_FRONTEND=noninteractive; apt update && apt upgrade -y"
+        fi
+    else
+        export DEBIAN_FRONTEND=noninteractive
+        apt update && apt upgrade -y
+    fi
+    ok "Atualizado."
+}
+
+# ===========================================================================
+#  Menu interativo
+# ===========================================================================
+
+cmd_menu() {
+    while true; do
+        clear 2>/dev/null || true
+        printf '%s\n' "$C_BOLD$C_CYN"
+        cat <<'BANNER'
+    _
+  | |_  __
+  | | \/  |   linux-android
+  |_|_/\__|   Linux com KDE no Android
+BANNER
+        printf '%s' "$C_RESET"
+        say "  v${LX_VERSION} · contexto: ${CTX}"
+        echo
+
+        local -a done_marks=()
+        local k
+        for k in termux ubuntu kde gpu dev-termux dev-ubuntu; do
+            state_has "$k" && done_marks+=("$k")
+        done
+        info "concluído: ${#done_marks[@]}/6 etapas  (veja em 'status')"
+        echo
+        say "  ${C_BOLD}1${C_RESET})  Instalar tudo            (setup)"
+        say "  ${C_BOLD}2${C_RESET})  Iniciar o desktop        (start)"
+        say "  ${C_BOLD}3${C_RESET})  Parar o desktop          (stop)"
+        say "  ${C_BOLD}4${C_RESET})  Ambiente de dev          (dev)"
+        say "  ${C_BOLD}5${C_RESET})  Ativar GPU               (gpu)"
+        say "  ${C_BOLD}6${C_RESET})  Diagnóstico              (doctor)"
+        say "  ${C_BOLD}7${C_RESET})  Status                   (status)"
+        say "  ${C_BOLD}8${C_RESET})  Terminal do Ubuntu       (shell)"
+        say "  ${C_BOLD}9${C_RESET})  Atualizar                (update)"
+        say "  ${C_BOLD}0${C_RESET})  Sair"
+        echo
+        printf '%sEscolha:%s ' "$C_BOLD" "$C_RESET"
+        local choice; read -r choice
+
+        case "$choice" in
+            1) cmd_setup ;;
+            2) cmd_start ;;
+            3) cmd_stop ;;
+            4) menu_dev ;;
+            5) cmd_gpu ;;
+            6) cmd_doctor ;;
+            7) cmd_status ;;
+            8) cmd_shell ;;
+            9) cmd_update ;;
+            0|q|Q) exit 0 ;;
+            *) warn "opção inválida" ;;
+        esac
+
+        echo
+        printf '%sEnter para voltar ao menu...%s' "$C_DIM" "$C_RESET"
+        read -r _
+    done
+}
+
+menu_dev() {
+    header "Ambiente de desenvolvimento"
+    say "  Instala: zsh + oh-my-zsh (darkblood), NvChad, tmux, git,"
+    say "           btop, bat, fzf, lazygit, fastfetch e Claude Code."
+    echo
+    say "  ${C_BOLD}1${C_RESET})  Nos dois (Termux + Ubuntu)   ${C_DIM}recomendado${C_RESET}"
+    say "  ${C_BOLD}2${C_RESET})  Só no Termux"
+    say "  ${C_BOLD}3${C_RESET})  Só no Ubuntu"
+    say "  ${C_BOLD}0${C_RESET})  Voltar"
+    echo
+    printf '%sEscolha:%s ' "$C_BOLD" "$C_RESET"
+    local c; read -r c
+    case "$c" in
+        1) cmd_dev both ;;
+        2) cmd_dev termux ;;
+        3) cmd_dev ubuntu ;;
+        *) return 0 ;;
+    esac
+}
+
+# ===========================================================================
+#  Ajuda
+# ===========================================================================
+
+cmd_help() {
+    cat <<EOF
+${C_BOLD}lx${C_RESET} v${LX_VERSION} — gerenciador do projeto linux-android
+
+${C_BOLD}USO${C_RESET}
+    ./lx                    menu interativo
+    ./lx <comando> [opções]
+
+${C_BOLD}COMANDOS${C_RESET}
+    ${C_BOLD}setup${C_RESET}               Instala tudo: Termux, Ubuntu, KDE e GPU.
+                        Pula o que já está feito — pode rodar de novo.
+
+    ${C_BOLD}start${C_RESET} [opções]      Inicia o desktop.
+        --gpu MODO        auto (padrão) | turnip | virgl | software
+        --alt             método alternativo (-xstartup), se o normal falhar
+        --extra "FLAGS"   flags do termux-x11:
+                            -legacy-drawing   tela preta
+                            -force-bgra       cores trocadas
+                            -dpi 96           ajuste de tamanho do texto
+
+    ${C_BOLD}stop${C_RESET}                Encerra o desktop e libera memória.
+
+    ${C_BOLD}dev${C_RESET} [alvo]          Ambiente de desenvolvimento.
+                        alvo: both (padrão) | termux | ubuntu
+        --no-claude       não instalar o Claude Code
+
+                        Instala: zsh + oh-my-zsh (tema darkblood), NvChad,
+                        tmux, git, btop, bat, fzf, lazygit, fastfetch e
+                        Claude Code.
+
+                        O Claude Code é instalado DENTRO do Ubuntu, com o
+                        instalador oficial do npm. No Termux nativo ele não
+                        roda: é um binário linkado com glibc e o Android usa
+                        bionic libc. O comando 'claude' fica disponível no
+                        Termux por um wrapper que executa no Ubuntu.
+
+    ${C_BOLD}gpu${C_RESET}                 Ativa a aceleração de GPU (Turnip/Adreno).
+
+    ${C_BOLD}doctor${C_RESET}              Diagnostica o que está faltando ou errado.
+    ${C_BOLD}status${C_RESET}              Mostra quais etapas já foram concluídas.
+    ${C_BOLD}shell${C_RESET}               Abre um terminal dentro do Ubuntu.
+    ${C_BOLD}update${C_RESET}              Atualiza os pacotes do Termux e do Ubuntu.
+    ${C_BOLD}help${C_RESET}                Esta ajuda.
+
+${C_BOLD}EXEMPLOS${C_RESET}
+    ./lx setup                          instalação completa
+    ./lx start                          iniciar (GPU automática)
+    ./lx start --gpu software           iniciar sem GPU (diagnóstico)
+    ./lx start --extra "-force-bgra"    corrigir cores invertidas
+    ./lx dev termux                     só o ambiente dev do Termux
+
+${C_BOLD}DOCUMENTAÇÃO${C_RESET}
+    docs/01-pre-requisitos.md     apps e opções do Android (leia primeiro)
+    docs/06-monitor-externo.md    usar num monitor via hub USB-C
+    docs/07-aceleracao-gpu.md     detalhes e diagnóstico de GPU
+    ${REPO_URL}
+EOF
+}
+
+# ===========================================================================
+#  Dispatch
+# ===========================================================================
+
+main() {
+    state_init
+
+    local cmd="${1:-}"
+    [ $# -gt 0 ] && shift
+
+    case "$cmd" in
+        ""|menu)          cmd_menu ;;
+        setup)            cmd_setup ;;
+        start|iniciar)    cmd_start "$@" ;;
+        stop|parar)       cmd_stop ;;
+        dev)              cmd_dev "$@" ;;
+        gpu)              cmd_gpu ;;
+        doctor|diag)      cmd_doctor ;;
+        status)           cmd_status ;;
+        shell|ubuntu)     cmd_shell ;;
+        update)           cmd_update ;;
+        help|-h|--help)   cmd_help ;;
+        version|--version) say "lx v${LX_VERSION}" ;;
+
+        # Subcomandos internos, usados quando o script se re-invoca no Ubuntu.
+        setup-kde)        install_kde_inside ;;
+        setup-gpu)        install_gpu_inside ;;
+
+        *) err "comando desconhecido: '$cmd'"; echo; cmd_help; exit 1 ;;
+    esac
+}
+
+main "$@"
