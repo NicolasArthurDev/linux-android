@@ -56,6 +56,25 @@ lx start --extra "-force-bgra"
   > `kwriteconfig6`. Cheque com `kwriteconfig6 --help` se o 5 não existir.
 - Confirme que `LIBGL_ALWAYS_SOFTWARE=1` está ativo — use `lx start --gpu software`.
 
+## "KDE instalado, mas SEM a sessão X11 (só Wayland)"
+
+Acontece no **Ubuntu 26.04 ou mais novo**, que traz o **Plasma 6**.
+
+O Plasma 6 tirou a sessão X11 do pacote `plasma-workspace` — ele passou a
+instalar só o `startplasma-wayland`. O binário que o `lx start` precisa
+(`startplasma-x11`) mudou para um pacote separado:
+
+```bash
+lx shell
+apt install -y plasma-session-x11 kwin-x11
+exit
+```
+
+Ou simplesmente rode `lx setup` de novo — ele detecta e resolve sozinho.
+
+> Por que X11 e não Wayland? O Termux:X11 é um **servidor X**. Uma sessão
+> Wayland não tem como desenhar nele.
+
 ## Sem áudio
 
 - O PulseAudio precisa estar rodando no Termux (o `lx start` inicia).

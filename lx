@@ -213,14 +213,29 @@ gh_latest_asset() {
 #  Verificações do lado Android (não dá para automatizar — só detectar/guiar)
 # ===========================================================================
 
-check_x11_app() {
-    require_termux "check_x11_app"
-    pm list packages 2>/dev/null | grep -q "com.termux.x11"
-}
-
-check_api_app() {
-    require_termux "check_api_app"
-    pm list packages 2>/dev/null | grep -q "com.termux.api"
+# Deteccao de apps instalados no Android.
+#
+# CUIDADO: desde o Android 11 existe filtragem de visibilidade de pacotes. Um
+# app so enxerga os outros que declara em <queries> ou com QUERY_ALL_PACKAGES.
+# O 'pm list packages' rodado pelo Termux devolve uma lista FILTRADA, entao
+# "nao apareceu" nao significa "nao instalado".
+#
+# Retorno: 0 = encontrado, 1 = nao encontrado, 2 = nao foi possivel verificar.
+check_android_app() {
+    local pkg="$1" out
+    out="$(pm list packages 2>/dev/null)"
+    if [ -z "$out" ]; then
+        return 2                      # pm nao respondeu: sem informacao
+    fi
+    if printf '%s' "$out" | grep -q "^package:${pkg}$"; then
+        return 0
+    fi
+    # A lista veio, mas sem o pacote. Pode ser ausencia real ou filtragem.
+    # 'pm path' as vezes responde mesmo quando o list nao mostra.
+    if pm path "$pkg" >/dev/null 2>&1; then
+        return 0
+    fi
+    return 2
 }
 
 check_phantom_killer() {
@@ -248,16 +263,19 @@ cmd_doctor() {
         warn "rodando fora do Termux (contexto: $CTX) — checagens limitadas."
     else
         step "Apps do Android"
-        if check_x11_app; then ok "Termux:X11 instalado"
-        else err "Termux:X11 NÃO instalado — é obrigatório (é a 'tela')"
-             info "https://github.com/termux/termux-x11/releases"
-             problems=$((problems+1)); fi
+        check_android_app "com.termux.x11"; local x11_rc=$?
+        case "$x11_rc" in
+            0) ok "Termux:X11 instalado" ;;
+            *) info "Termux:X11: não foi possível confirmar pelo terminal"
+               info "o Android 11+ esconde a lista de apps de outros apps,"
+               info "então isto NÃO quer dizer que falta — confira na gaveta"
+               info "de apps. Se não tiver: github.com/termux/termux-x11/releases" ;;
+        esac
 
         # O Termux:API NAO e necessario aqui. O termux-wake-lock vem do pacote
         # termux-tools (essencial, ja instalado) e fala direto com o TermuxService
         # do proprio app Termux. O Termux:API so serve para camera, SMS, sensores.
-        if check_api_app; then ok "Termux:API instalado (opcional)"
-        else info "Termux:API não instalado — tudo bem, este projeto não precisa dele"; fi
+        info "Termux:API é opcional — este projeto não precisa dele"
 
         step "Restrição de processos filhos (Phantom Process Killer)"
         if check_phantom_killer; then
@@ -282,8 +300,17 @@ cmd_doctor() {
         resolve_rootfs
         if [ -d "$ROOTFS" ]; then
             ok "instalado em $ROOTFS"
-            if [ -x "${ROOTFS}/usr/bin/startplasma-x11" ]; then ok "KDE Plasma instalado"
-            else err "KDE Plasma NÃO instalado — rode: ./lx setup"; problems=$((problems+1)); fi
+            if [ -x "${ROOTFS}/usr/bin/startplasma-x11" ]; then
+                ok "KDE Plasma instalado (sessão X11 presente)"
+            elif [ -x "${ROOTFS}/usr/bin/startplasma-wayland" ]; then
+                err "KDE instalado, mas SEM a sessão X11 (só Wayland)"
+                info "é o Plasma 6: o startplasma-x11 mudou para o pacote"
+                info "plasma-session-x11. Rode './lx setup' de novo para instalá-lo."
+                problems=$((problems+1))
+            else
+                err "KDE Plasma NÃO instalado — rode: ./lx setup"
+                problems=$((problems+1))
+            fi
 
             if [ -f "${ROOTFS}/etc/linux-android-gpu.conf" ]; then
                 ok "aceleração de GPU configurada (Turnip)"
@@ -440,8 +467,35 @@ Autolock=false
 LockOnResume=false
 EOF
 
+    # -----------------------------------------------------------------------
+    # A sessao X11 do Plasma
+    #
+    # No Ubuntu 24.04 (Plasma 5) o startplasma-x11 vem dentro do
+    # plasma-workspace. No 26.04 (Plasma 6) o plasma-workspace passou a trazer
+    # SO o startplasma-wayland — a sessao X11 foi movida para o pacote
+    # plasma-session-x11, e o compositor para kwin-x11.
+    #
+    # Sem isso o KDE instala "com sucesso" e o 'lx start' morre depois, porque
+    # o binario que ele chama nao existe. Por isso instalamos sob demanda e
+    # conferimos o resultado em vez de confiar no apt.
+    # -----------------------------------------------------------------------
+    if [ ! -x /usr/bin/startplasma-x11 ]; then
+        step "Sessão X11 ausente (Plasma 6) — instalando plasma-session-x11..."
+        apt install -y plasma-session-x11 kwin-x11 \
+            || warn "não consegui instalar plasma-session-x11/kwin-x11"
+    fi
+
+    if [ ! -x /usr/bin/startplasma-x11 ]; then
+        err "o KDE foi instalado, mas /usr/bin/startplasma-x11 não existe."
+        info "sem ele o 'lx start' não tem como subir a sessão."
+        info "tente manualmente:  lx shell  →  apt install -y plasma-session-x11 kwin-x11"
+        info "se não houver esse pacote na sua versão do Ubuntu, use o XFCE"
+        info "(veja docs/05-dicas-desempenho.md)"
+        return 1
+    fi
+
     state_set kde
-    ok "KDE Plasma instalado."
+    ok "KDE Plasma instalado (sessão X11 confirmada)."
 }
 
 # ===========================================================================

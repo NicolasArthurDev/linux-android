@@ -124,7 +124,12 @@ Se algum der "App não instalado" ou
 algum Termux de outra origem instalado. Desinstale **todos** (Termux e plugins)
 e recomece do passo 1.
 
-> Depois de instalar, `lx doctor` confirma se o Android enxerga os apps.
+> Depois de instalar, rode `lx doctor`.
+>
+> ⚠️ Se ele disser **"Termux:X11: não foi possível confirmar"**, está tudo bem.
+> Desde o Android 11 um app não enxerga a lista de apps instalados dos outros,
+> então o terminal simplesmente não consegue verificar. Confira na gaveta de
+> apps do celular.
 
 ---
 
