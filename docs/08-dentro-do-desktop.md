@@ -92,8 +92,15 @@ lx dev
 Depois, no Konsole: `fastfetch` mostra sistema, kernel, RAM e GPU num painel só.
 
 > **Sim, é Ubuntu de verdade.** Um `apt install` funciona como em qualquer
-> Ubuntu ARM64. A única diferença é que roda em proot, sem systemd — então
-> serviços (`systemctl`) não funcionam, mas programas normais sim.
+> Ubuntu ARM64, com duas ressalvas:
+>
+> - sem systemd, então `systemctl` e serviços não funcionam;
+> - a imagem vem só com o componente **`main`**. Se algo der *"Unable to locate
+>   package"* (`neofetch`, `falkon`, `glmark2`…), habilite o resto:
+>   ```bash
+>   apt install -y software-properties-common
+>   add-apt-repository -y universe && apt update
+>   ```
 
 ---
 
@@ -146,14 +153,20 @@ Clique com o botão direito na barra → **Editar Painel**. Dá para:
 
 ## Instale um navegador
 
-O Firefox do Ubuntu é **snap** e não roda em proot. Use:
+Um comando, no **Termux**:
 
 ```bash
-apt install -y firefox-esr
-# ou
-apt install -y chromium-browser
-# e rode com: chromium-browser --no-sandbox
+lx browser            # Firefox (.deb oficial da Mozilla)
+lx browser falkon     # Falkon — Qt/KDE, mais leve
 ```
+
+> ⚠️ **Não use `apt install firefox` nem `chromium-browser`.** No Ubuntu os dois
+> são pacotes de transição para **snap**, e snap não roda em proot. A instalação
+> parece dar certo e o navegador não abre.
+
+O `lx browser` também habilita o componente `universe` (a imagem do proot-distro
+vem só com `main`, por isso vários pacotes dão *"Unable to locate package"*) e
+desativa o sandbox do Firefox, que precisa de namespaces indisponíveis aqui.
 
 Detalhes em [dicas de desempenho](05-dicas-desempenho.md).
 

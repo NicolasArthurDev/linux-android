@@ -80,6 +80,7 @@ Sem argumento nenhum ele abre um **menu interativo**. Se preferir digitar:
 | `./lx stop` | Encerra e libera memória |
 | `./lx dev` | Ambiente de desenvolvimento (zsh, NvChad, tmux, lazygit...) |
 | `./lx gpu` | Ativa a aceleração de GPU |
+| `./lx browser` | Instala um navegador que **realmente** roda em proot (o do apt é snap) |
 | `./lx doctor` | **Diagnostica o que está faltando** — rode este quando algo der errado |
 | `./lx status` | Mostra quais etapas já foram concluídas |
 | `./lx shell` | Abre um terminal dentro do Ubuntu |

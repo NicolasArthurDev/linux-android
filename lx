@@ -597,6 +597,110 @@ EOF
 }
 
 # ===========================================================================
+#  Navegador
+# ===========================================================================
+#
+#  Tres armadilhas que este comando resolve:
+#
+#  1. A imagem OCI do Ubuntu vem so com 'main'. Quase tudo interessante
+#     (navegadores, neofetch, falkon) esta em 'universe', e um
+#     'apt install' falha com "Unable to locate package".
+#
+#  2. No Ubuntu, 'chromium-browser' e 'chromium' sao pacotes de TRANSICAO
+#     que instalam o snap. Snap nao roda em proot (precisa de systemd e
+#     de montagens privilegiadas). Instalar da a impressao de sucesso e
+#     o navegador simplesmente nao abre.
+#
+#  3. O 'firefox' do Ubuntu tambem e snap. O Firefox de verdade em .deb
+#     vem do repositorio oficial da Mozilla, que publica arm64.
+
+enable_universe() {
+    step "Habilitando o componente 'universe'..."
+    if have add-apt-repository; then
+        add-apt-repository -y universe >/dev/null 2>&1 && { apt update; return 0; }
+    fi
+    apt install -y software-properties-common >/dev/null 2>&1 \
+        && add-apt-repository -y universe >/dev/null 2>&1 \
+        && { apt update; return 0; }
+    warn "não consegui habilitar o universe automaticamente"
+    return 1
+}
+
+install_firefox_inside() {
+    step "Configurando o repositório oficial da Mozilla (arm64)..."
+    apt install -y wget gnupg ca-certificates >/dev/null 2>&1 || true
+
+    install -d -m 0755 /etc/apt/keyrings
+    wget -qO- https://packages.mozilla.org/apt/repo-signing-key.gpg \
+        > /etc/apt/keyrings/packages.mozilla.org.asc \
+        || { err "não consegui baixar a chave da Mozilla."; return 1; }
+
+    echo "deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.asc] https://packages.mozilla.org/apt mozilla main" \
+        > /etc/apt/sources.list.d/mozilla.list
+
+    # Sem o pin, o apt pode preferir o 'firefox' do Ubuntu — que e o snap.
+    cat > /etc/apt/preferences.d/mozilla <<'PIN'
+Package: *
+Pin: origin packages.mozilla.org
+Pin-Priority: 1000
+PIN
+
+    apt update || return 1
+    step "Instalando o Firefox..."
+    apt install -y firefox || { err "falha ao instalar o Firefox."; return 1; }
+
+    # O sandbox do Firefox usa namespaces de usuario, que o proot nao oferece.
+    # Sem isto as abas morrem ao abrir.
+    cat > /etc/profile.d/firefox-proot.sh <<'ENVF'
+# Gerado por 'lx browser' — o sandbox do Firefox nao funciona em proot.
+export MOZ_DISABLE_CONTENT_SANDBOX=1
+export MOZ_DISABLE_GMP_SANDBOX=1
+export MOZ_ENABLE_WAYLAND=0
+ENVF
+    chmod 644 /etc/profile.d/firefox-proot.sh
+
+    ok "Firefox instalado ($(firefox --version 2>/dev/null || echo 'versão desconhecida'))"
+    info "atalho no menu do KDE, ou rode 'firefox' no Konsole"
+}
+
+install_falkon_inside() {
+    step "Instalando o Falkon (navegador Qt do KDE, mais leve)..."
+    apt install -y falkon || { err "falha ao instalar o Falkon."; return 1; }
+    ok "Falkon instalado"
+}
+
+install_browser_inside() {
+    [ "$CTX" = "ubuntu" ] || die "install_browser_inside só roda dentro do Ubuntu."
+    export DEBIAN_FRONTEND=noninteractive
+    local which_b="${1:-firefox}"
+
+    header "Instalando navegador: ${which_b}"
+    apt update || warn "apt update com erro (seguindo)"
+    enable_universe || true
+
+    case "$which_b" in
+        firefox) install_firefox_inside ;;
+        falkon)  install_falkon_inside ;;
+        *) die "navegador desconhecido: '$which_b' (use: firefox | falkon)" ;;
+    esac
+}
+
+cmd_browser() {
+    local which_b="${1:-firefox}"
+    case "$which_b" in
+        firefox|falkon) ;;
+        *) die "navegador desconhecido: '$which_b' (use: firefox | falkon)" ;;
+    esac
+    if [ "$CTX" = "ubuntu" ]; then
+        install_browser_inside "$which_b"
+    else
+        require_termux "browser"
+        require_ubuntu_installed
+        run_in_ubuntu browser-install "$which_b"
+    fi
+}
+
+# ===========================================================================
 #  Ambiente de desenvolvimento
 # ===========================================================================
 
@@ -1338,6 +1442,7 @@ BANNER
         say "  ${C_BOLD}3${C_RESET})  Parar o desktop          (stop)"
         say "  ${C_BOLD}4${C_RESET})  Ambiente de dev          (dev)"
         say "  ${C_BOLD}5${C_RESET})  Ativar GPU               (gpu)"
+        say "  ${C_BOLD}b${C_RESET})  Instalar navegador       (browser)"
         say "  ${C_BOLD}6${C_RESET})  Diagnóstico              (doctor)"
         say "  ${C_BOLD}7${C_RESET})  Status                   (status)"
         say "  ${C_BOLD}8${C_RESET})  Terminal do Ubuntu       (shell)"
@@ -1358,6 +1463,7 @@ BANNER
             3) cmd_stop ;;
             4) menu_dev ;;
             5) cmd_gpu ;;
+            b|B) menu_browser ;;
             6) cmd_doctor ;;
             7) cmd_status ;;
             8) cmd_shell ;;
@@ -1371,6 +1477,24 @@ BANNER
         printf '%sEnter para voltar ao menu...%s' "$C_DIM" "$C_RESET"
         read -r _
     done
+}
+
+menu_browser() {
+    header "Navegador"
+    say "  O 'firefox' e o 'chromium' do Ubuntu são pacotes de transição para"
+    say "  snap, que não roda em proot. Estas opções realmente funcionam:"
+    echo
+    say "  ${C_BOLD}1${C_RESET})  Firefox  ${C_DIM}(.deb oficial da Mozilla)${C_RESET}"
+    say "  ${C_BOLD}2${C_RESET})  Falkon   ${C_DIM}(Qt/KDE, bem mais leve)${C_RESET}"
+    say "  ${C_BOLD}0${C_RESET})  Voltar"
+    echo
+    printf '%sEscolha:%s ' "$C_BOLD" "$C_RESET"
+    local c; read -r c
+    case "$c" in
+        1) cmd_browser firefox ;;
+        2) cmd_browser falkon ;;
+        *) return 0 ;;
+    esac
 }
 
 menu_dev() {
@@ -1435,6 +1559,15 @@ ${C_BOLD}COMANDOS${C_RESET}
 
     ${C_BOLD}gpu${C_RESET}                 Ativa a aceleração de GPU (Turnip/Adreno).
 
+    ${C_BOLD}browser${C_RESET} [qual]      Instala um navegador que REALMENTE roda em proot.
+                        qual: firefox (padrão) | falkon
+
+                        O 'firefox'/'chromium' do Ubuntu são pacotes de
+                        transição para snap, e snap não funciona em proot.
+                        Este comando usa o repositório .deb oficial da
+                        Mozilla e desativa o sandbox, que precisa de
+                        namespaces indisponíveis aqui.
+
     ${C_BOLD}doctor${C_RESET}              Diagnostica o que está faltando ou errado.
     ${C_BOLD}status${C_RESET}              Mostra quais etapas já foram concluídas.
     ${C_BOLD}shell${C_RESET}               Abre um terminal dentro do Ubuntu.
@@ -1481,6 +1614,7 @@ main() {
         stop|parar)       cmd_stop ;;
         dev)              cmd_dev "$@" ;;
         gpu)              cmd_gpu ;;
+        browser|navegador) cmd_browser "$@" ;;
         doctor|diag)      cmd_doctor ;;
         status)           cmd_status ;;
         shell|ubuntu)     cmd_shell ;;
@@ -1498,6 +1632,7 @@ main() {
         # Subcomandos internos, usados quando o script se re-invoca no Ubuntu.
         setup-kde)        install_kde_inside ;;
         setup-gpu)        install_gpu_inside ;;
+        browser-install)  install_browser_inside "$@" ;;
 
         *) err "comando desconhecido: '$cmd'"; echo; cmd_help; exit 1 ;;
     esac

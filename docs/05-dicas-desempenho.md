@@ -55,38 +55,62 @@ costuma ficar mais confortável que o XFCE em software.
 
 ## Navegador que funciona em proot
 
-O Firefox do Ubuntu é snap e **não roda** em proot. Use uma destas opções:
-
 ```bash
-# Chromium via apt (precisa de flags por causa do sandbox)
-apt install -y chromium-browser
-# rode com:  chromium-browser --no-sandbox --disable-gpu
+lx browser            # Firefox (.deb oficial da Mozilla)
+lx browser falkon     # Falkon — Qt/KDE, bem mais leve
 ```
 
-Ou Firefox ESR:
+### Por que não dá para usar o apt direto
 
-```bash
-apt install -y firefox-esr
-```
+Três armadilhas, e o comando acima existe justamente para desviar delas:
 
-> Para o Chromium iniciar sem travar, sempre use `--no-sandbox --disable-gpu`.
-> Crie um atalho no menu apontando para isso.
+| Armadilha | O que acontece |
+|---|---|
+| `apt install firefox` | é **pacote de transição para snap**. Snap não roda em proot (precisa de systemd e montagens privilegiadas) |
+| `apt install chromium-browser` / `chromium` | **idem** — também são snap no Ubuntu |
+| `apt install falkon` | falha com *"Unable to locate package"*: está no componente **universe**, que a imagem do proot-distro não habilita |
 
----
+O `lx browser` habilita o `universe`, configura o repositório **.deb oficial da
+Mozilla** (que publica arm64) com pin para não cair no snap, e desativa o
+sandbox do Firefox — que depende de *namespaces* de usuário indisponíveis em
+proot, e sem isso as abas morrem ao abrir.
+
+### Qual escolher
+
+- **Firefox** — completo, o que você já conhece. Pesa mais na RAM.
+- **Falkon** — navegador Qt do próprio KDE. Bem mais leve, integra melhor com o
+  Plasma. Bom quando a RAM apertar (o KDE já usa ~4,5 GB dos 8 GB).
 
 ## Programas úteis para instalar (dentro do Ubuntu)
 
+Boa parte destes está no componente **`universe`**, que a imagem do
+proot-distro não habilita. Faça isso uma vez:
+
 ```bash
-apt install -y firefox-esr libreoffice git htop neofetch
+apt install -y software-properties-common
+add-apt-repository -y universe && apt update
+```
+
+Depois:
+
+```bash
+apt install -y libreoffice git htop fastfetch glmark2
 ```
 
 | Pacote | Para quê |
 |--------|----------|
-| `firefox-esr` | navegador (o Firefox normal do Ubuntu é snap e não roda em proot) |
 | `libreoffice` | suíte de escritório |
 | `git` | controle de versão |
 | `htop` | monitor de recursos |
-| `neofetch` | info do sistema |
+| `fastfetch` | info do sistema — mostra CPU, GPU e RAM de uma vez |
+| `glmark2` | benchmark de GPU, para comparar com e sem aceleração |
+
+> O **navegador** não está aqui de propósito: use `lx browser` (veja acima).
+> O `firefox-esr` não existe no Ubuntu, e o `firefox` do apt é snap.
+>
+> Sobre o **`neofetch`**: ele foi arquivado pelo autor em 2024 e não conhece o
+> Ubuntu 26.04 nem a Adreno 740 — mostra "Unknown" em vários campos. O
+> `fastfetch` é o sucessor mantido e detecta a GPU corretamente.
 
 O **VS Code** não está na lista porque exige o repositório da Microsoft. Se quiser:
 
