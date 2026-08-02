@@ -16,10 +16,11 @@ dentro do Galaxy S23, usando **Termux + proot-distro + Termux-X11** —
    caminho recomendado**, por dar semântica nativa de mouse e não exigir opções
    de desenvolvedor: veja [monitor externo](docs/06-monitor-externo.md).
 
-> ⚠️ **Status do projeto:** guia baseado em conhecimento e nas docs oficiais do
-> Termux/proot-distro, **validação em campo (no S23) ainda pendente**. O fluxo e
-> os ajustes são bem fundamentados, mas nomes exatos de pacotes e detalhes podem
-> precisar de pequenos ajustes na primeira execução. Encontrou um erro? Veja
+> ✅ **Status: validado em campo.** Testado num **Galaxy S23** (Snapdragon 8
+> Gen 2, Adreno 740) com Ubuntu 26.04 + Plasma 6 e aceleração de GPU ativa.
+> O que ainda não foi testado é o uso em **monitor externo** — a parte de
+> [DeX/HDMI](docs/06-monitor-externo.md) segue baseada em documentação.
+> Encontrou um erro? Veja
 > [solução de problemas](docs/04-solucao-de-problemas.md) e/ou abra uma *issue*.
 
 ---
@@ -109,8 +110,9 @@ Instala em ambos: **zsh + Oh My Zsh** (tema `darkblood`), **NvChad**, **tmux**,
 
 Dois detalhes que o script resolve por você:
 
-- O Ubuntu 24.04 traz o Neovim 0.9.5, mas o **NvChad exige 0.10+** — então o
-  Neovim é instalado do tarball oficial, não do apt.
+- O Neovim do apt pode ser antigo demais para o **NvChad, que exige 0.10+**
+  (o Ubuntu 24.04, por exemplo, traz o 0.9.5) — então ele é instalado do
+  tarball oficial.
 - O **Claude Code** não roda no Termux nativo (é um binário glibc; o Android usa
   bionic libc). Ele é instalado **dentro do Ubuntu**, e o comando `claude` fica
   disponível no Termux através de um wrapper que executa lá — transparente.
