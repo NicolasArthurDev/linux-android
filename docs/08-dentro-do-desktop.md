@@ -66,8 +66,10 @@ cat /etc/os-release | head -2          # deve dizer Ubuntu 26.04
 
 # 2. A GPU está sendo usada?  ← o mais importante
 glxinfo -B | grep -i "renderer string"
-#   Turnip / Adreno / freedreno  -> GPU ativa
-#   llvmpipe / softpipe          -> caindo na CPU
+#   FD740 (ou FD7xx/FD6xx)  -> GPU ativa   <- o S23 mostra FD740
+#   Turnip / Adreno         -> GPU ativa
+#   llvmpipe / softpipe     -> caindo na CPU
+# Avisos sobre MESA-LOADER e os_same_file_description são normais em proot.
 
 # 3. Internet
 apt update

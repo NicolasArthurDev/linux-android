@@ -92,12 +92,43 @@ glxinfo -B
 
 Olhe a linha **OpenGL renderer string**:
 
-- contém `Turnip`, `Adreno` ou `freedreno` → ✅ **GPU ativa** (caminho direto)
-- contém `Zink (Adreno ...)` → ✅ **GPU ativa** (via Zink/Vulkan)
-- contém `llvmpipe` ou `softpipe` → ❌ ainda está na CPU
+| Valor | Significado |
+|-------|-------------|
+| **`FD740`**, `FD730`, `FD650`… | ✅ **GPU ativa.** `FD` = FreeDreno, o número é o modelo da Adreno. `FD740` é o que o **Galaxy S23** mostra |
+| `Turnip`, `Adreno`, `freedreno` | ✅ GPU ativa (outras formas de o Mesa se identificar) |
+| `Zink (Adreno …)` | ✅ GPU ativa, pelo caminho Zink/Vulkan |
+| `llvmpipe`, `softpipe` | ❌ caiu na CPU |
+
+> ⚠️ Não estranhe o formato enxuto: o driver se identifica como **`FD740`**, sem
+> a palavra "Adreno" nem "Turnip". É a resposta certa.
 
 > ⚠️ Rode o `glxinfo` **dentro do KDE** (Konsole), não numa sessão sem X.
 > Sem `DISPLAY` válido ele falha ou reporta o driver errado.
+
+### Avisos que aparecem junto (e são normais)
+
+O `glxinfo` costuma cuspir isto antes do resultado. **Nada aqui é problema:**
+
+```
+ATTENTION: default value of option vblank_mode overridden by environment.
+```
+É o próprio `lx start`, que define `vblank_mode=3` para reduzir tearing.
+
+```
+MESA-LOADER: failed to retrieve device information
+```
+O Mesa não consegue ler os metadados do dispositivo pelo caminho usual do
+Linux (`/sys`), porque no Android o acesso é pela interface KGSL. Ele segue
+adiante e usa a GPU normalmente — a prova é o `FD740` logo abaixo.
+
+```
+os_same_file_description couldn't determine if two DRM fds reference
+the same file description. (Function not implemented)
+```
+O Mesa tentou usar a syscall `kcmp()` para comparar descritores de arquivo.
+Ela não é permitida em proot, então ele adota a suposição conservadora e
+continua. Limitação estrutural de rodar sem root, sem consequência prática
+aqui.
 
 Benchmark, para comparar antes e depois:
 
