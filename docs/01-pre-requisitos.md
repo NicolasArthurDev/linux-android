@@ -62,6 +62,42 @@ mata o Termux em segundo plano e o desktop cai quando você troca de app.
 
 ---
 
+## ⚠️ Obrigatório: desativar a restrição de processos filhos
+
+Esse é o passo mais importante desta página, e o menos óbvio.
+
+A partir do **Android 12**, o sistema tem o *Phantom Process Killer*: ele limita a
+uns **32 processos filhos** por app e mata o excesso, sem avisar. Uma sessão KDE
+Plasma passa disso com folga — são dezenas de processos (kwin, plasmashell, kded,
+os daemons do KDE, o navegador...).
+
+O sintoma é cruel de diagnosticar: **o desktop simplesmente morre**, ou apps
+somem sozinhos, ou tudo trava depois de alguns minutos — sem mensagem de erro.
+
+### Como desativar
+
+1. Ative as **Opções de desenvolvedor** (Configurações → Sobre o telefone →
+   Informações de software → toque 7 vezes em "Número da versão").
+2. Configurações → **Opções de desenvolvedor** → ative
+   **"Desativar restrições de processos filhos"**
+   (*"Disable child process restrictions"*).
+3. **Reinicie o celular.**
+
+### Se a opção não existir
+
+Em algumas versões dá para fazer via ADB (de um PC, com depuração USB ativa):
+
+```bash
+adb shell "/system/bin/device_config set_sync_disabled_for_tests persistent"
+adb shell "/system/bin/device_config put activity_manager max_phantom_processes 2147483647"
+```
+
+> ⚠️ Em muitas versões do Android isso **volta ao normal após reiniciar**, e
+> precisa ser refeito. A opção de desenvolvedor, quando existe, é persistente —
+> prefira ela.
+
+---
+
 ## Recomendado: desativar otimização de bateria do Termux
 
 O Android pode "matar" o Termux em segundo plano e derrubar o desktop.

@@ -27,6 +27,15 @@ pkg install -y \
     nano \
     termux-api
 
+# Aceleração de GPU pelo caminho ALTERNATIVO (virgl). O caminho principal do S23
+# é o Turnip, instalado dentro do Ubuntu pelo 03-setup-gpu.sh e que não precisa
+# de nada aqui. Instalamos o virgl mesmo assim porque é o plano B se o Turnip
+# não funcionar. Se falhar (pacote renomeado, repo indisponível), seguimos —
+# não é essencial para o desktop subir.
+echo "==> Instalando suporte a GPU pelo caminho alternativo (virgl)..."
+pkg install -y virglrenderer-android || \
+    echo "    (virgl indisponível — sem problema, o caminho principal é o Turnip.)"
+
 echo "==> Configurando acesso ao armazenamento (aceite a permissão na tela)..."
 termux-setup-storage || true
 

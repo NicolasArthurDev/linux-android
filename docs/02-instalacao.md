@@ -65,7 +65,25 @@ chmod +x 02-setup-kde.sh
 ./02-setup-kde.sh
 ```
 
-Esse é o passo mais demorado (baixa o KDE inteiro). Ao terminar, **saia do Ubuntu**:
+Esse é o passo mais demorado (baixa o KDE inteiro).
+
+---
+
+## Passo 3.5 — Ativar a GPU (ainda dentro do Ubuntu) ⭐
+
+Não pule este passo. É o maior ganho de desempenho do projeto — sem ele, todo o
+desktop é desenhado pela CPU.
+
+```bash
+# (ainda dentro do Ubuntu)
+wget https://raw.githubusercontent.com/NicolasArthurDev/linux-android/main/scripts/03-setup-gpu.sh
+chmod +x 03-setup-gpu.sh
+./03-setup-gpu.sh
+```
+
+Detalhes e diagnóstico em [aceleração de GPU](07-aceleracao-gpu.md).
+
+Agora **saia do Ubuntu**:
 
 ```bash
 exit

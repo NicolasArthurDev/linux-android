@@ -55,7 +55,18 @@ Depois é só digitar `kde` para iniciar e `kde-off` para parar.
 ## Compartilhar arquivos entre Android e Linux
 
 Use o `--shared-tmp` (já ativado no `start-kde.sh`) ou acesse o armazenamento do
-celular de dentro do Ubuntu. Para montar a pasta de armazenamento compartilhada,
+celular de dentro do Ubuntu.
+
+> ⚠️ Se o `~/storage` não aparecer, rode o `termux-setup-storage` **com o desktop
+> parado** — ele precisa do popup de permissão do Android, que não aparece com o
+> Termux:X11 na frente:
+> ```bash
+> ./stop-kde.sh
+> termux-setup-storage      # aceite a permissão na tela
+> ./start-kde.sh
+> ```
+
+Para montar a pasta de armazenamento compartilhada,
 entre no Ubuntu e os arquivos do Termux ficam em:
 
 ```

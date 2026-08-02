@@ -35,6 +35,9 @@ echo "==> Encerrando a sessão proot do Ubuntu..."
 pkill -f "[p]root-distro"    2>/dev/null || true
 pkill -f "[i]nstalled-rootfs/ubuntu" 2>/dev/null || true
 
+echo "==> Encerrando o servidor virgl (se estiver rodando)..."
+pkill -f "[v]irgl_test_server" 2>/dev/null || true
+
 echo "==> Encerrando o servidor Termux-X11..."
 pkill -f "com.termux.x11" 2>/dev/null || true
 pkill -f "termux.x11"     2>/dev/null || true

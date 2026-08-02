@@ -70,10 +70,24 @@ X11_EXTRA="-force-bgra" ./start-kde.sh
       --load="module-native-protocol-tcp auth-ip-acl=127.0.0.1 auth-anonymous=1"
   ```
 
+## O desktop morre sozinho depois de alguns minutos / apps somem
+
+Esta é a causa nº1 de instabilidade, e não gera mensagem de erro nenhuma:
+o **Phantom Process Killer** do Android 12+ limita a ~32 processos filhos por app
+e mata o excesso. O KDE passa disso com folga.
+
+Solução: Opções de desenvolvedor → **"Desativar restrições de processos filhos"**
+→ **reiniciar o celular**. Passo a passo em [pré-requisitos](01-pre-requisitos.md).
+
+Se o desktop cai sempre por volta do mesmo ponto (ex.: ao abrir o navegador),
+é quase certo que seja isso.
+
 ## O Android "mata" o Termux em segundo plano
 
 - Desative a otimização de bateria (veja [pré-requisitos](01-pre-requisitos.md)).
-- Ative o **wake-lock** pela notificação do Termux.
+- O `start-kde.sh` já ativa o **wake-lock** automaticamente (precisa do app
+  Termux:API instalado).
+- Confira também a restrição de processos filhos, acima.
 
 ## "KDE roda como root" / avisos de segurança
 

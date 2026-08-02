@@ -39,11 +39,76 @@ Por padrão, ligar o HDMI no Android **espelha** a tela do celular. O app
 Termux:X11 continua na tela do celular; o monitor só mostra uma cópia esticada.
 Você teria um desktop KDE em formato de celular, esticado num monitor — inútil.
 
-Existem **dois caminhos** para resolver. Teste o A primeiro.
+Existem **dois caminhos** para resolver. **Comece pelo A (DeX)** — é mais simples
+e, na prática, costuma dar a melhor experiência.
 
 ---
 
-## Caminho A — Modo desktop experimental (sem DeX) ✅ recomendado
+## Caminho A — Samsung DeX ✅ recomendado
+
+### O que o DeX é (e o que ele não é)
+
+Vale desfazer uma confusão comum: **o DeX não é um segundo sistema operacional.**
+Não é VM, não é emulador, não é uma "máquina Linux da Samsung". É apenas um
+**shell diferente do próprio Android** — outro launcher, outra barra de tarefas,
+janelas redimensionáveis. Mesmo kernel, mesmos processos, mesmos apps.
+
+É o equivalente a trocar o GNOME pelo KDE no mesmo Linux: o sistema por baixo é
+idêntico, muda só como as janelas são desenhadas.
+
+Então rodar "Linux dentro do DeX" **não empilha dois sistemas**. A pilha real é:
+
+```
+Kernel Linux            <- o Android JÁ é Linux
+└─ Android userspace
+   └─ DeX               <- só o modo janela/taskbar do Android
+      └─ Termux         <- app Android comum
+         └─ proot       <- tradução de syscalls (NÃO é VM)
+            └─ Ubuntu
+               └─ KDE   <- desenha via protocolo X
+                  ↓
+         Termux:X11     <- app Android que É um servidor X
+            └─ uma janela no DeX, maximizada no monitor
+```
+
+**Um kernel. Um sistema operacional.** O custo extra do DeX é pequeno — é o
+SystemUI do Android operando em outro modo.
+
+### Como usar
+
+1. Conecte o hub. O DeX inicia sozinho (ou aparece a notificação
+   **"Iniciar o Samsung DeX"**).
+2. No DeX, abra o **Termux** e rode `./start-kde.sh`.
+3. A janela do **Termux:X11** aparece — **maximize** e pronto: KDE em tela cheia
+   no monitor.
+
+### Por que este caminho costuma ser melhor
+
+| Vantagem | Detalhe |
+|----------|---------|
+| **Zero configuração de risco** | sem opções de desenvolvedor, sem ADB, sem reboot |
+| **Mouse de verdade** | o DeX dá semântica nativa de ponteiro: clique direito, scroll, arrastar — ponto fraco conhecido do Caminho B |
+| **Android + Linux lado a lado** | WhatsApp, Spotify, app do banco em janelas ao lado do KDE |
+| **Caminho testado** | é a rota mais usada pela comunidade; com Termux:X11 é bem mais rápida que VNC |
+| **Mais rápido que espelhar** | rodar em DeX real rende bem mais quadros que deixar o monitor espelhando a tela do celular — a diferença é visível em vídeo e ao rolar página |
+
+### Limitações
+
+- Por padrão o DeX limita a saída a **1920x1080**. Para **1440p ou 4K**, instale o
+  app **Good Lock** → módulo **MultiStar**, que destrava as resoluções maiores.
+- Há relatos de **cores ou brilho estranhos** no Termux:X11 sob DeX em alguns
+  Samsung. Se acontecer:
+  ```bash
+  ./stop-kde.sh
+  X11_EXTRA="-force-bgra" ./start-kde.sh
+  ```
+
+---
+
+## Caminho B — Modo desktop experimental (sem DeX)
+
+Use este se o DeX te incomodar por algum motivo específico — por exemplo, se você
+quiser o Termux:X11 ocupando a tela sozinho, sem a barra de tarefas do DeX.
 
 O Termux:X11 tem suporte nativo a isto: quando detecta um display externo **e** o
 modo desktop experimental está ativo, ele abre **em tela cheia direto no monitor**,
@@ -79,29 +144,18 @@ adb reboot
 
 Para reverter: troque `1` por `0` e reinicie.
 
-> ⚠️ Se o "Forçar modo desktop" não existir **e** o ADB não pegar, vá para o
-> Caminho B. Não force — o comportamento da One UI varia entre versões.
+> ⚠️ Se o "Forçar modo desktop" não existir **e** o ADB não pegar, volte para o
+> **Caminho A (DeX)**. Não force — o comportamento da One UI varia entre versões.
 
----
+### Desvantagem deste caminho
 
-## Caminho B — Via Samsung DeX
-
-O DeX resolve o problema de outro jeito: ele **é** um ambiente de janelas na tela
-externa, e o Termux:X11 vira uma janela dentro dele, que você maximiza.
-
-1. Conecte o hub. O DeX inicia sozinho (ou aparece a notificação "Iniciar o DeX").
-2. No DeX, abra o **Termux**, rode `./start-kde.sh`.
-3. Abra a janela do **Termux:X11** e **maximize** na tela externa.
-
-**Prós:** funciona sem mexer em opções de desenvolvedor; teclado e mouse do hub
-já funcionam bem.
-
-**Contras:** você tem um desktop (KDE) dentro de outro desktop (DeX) — desperdiça
-RAM, e há relatos de **cores/brilho estranhos** no Termux:X11 sob DeX em alguns
-Samsung. Se as cores saírem invertidas, veja abaixo.
+O mapeamento de mouse e teclado em telas secundárias fora do DeX é
+historicamente problemático no Android. Se o ponteiro se comportar de forma
+estranha, o DeX resolve.
 
 > O README diz que o projeto "não depende do DeX" — isso continua verdade para
-> usar na tela do celular. Para o monitor externo, o DeX é o plano B.
+> usar **na tela do celular**, que funciona sem DeX nenhum. Para o monitor
+> externo, o DeX é o caminho recomendado.
 
 ---
 
@@ -218,9 +272,12 @@ Sim, com expectativas calibradas:
 ✅ Navegar, escrever, terminal, código, LibreOffice, ferramentas de linha de
 comando — tudo isso funciona bem no Snapdragon 8 Gen 2.
 
-⚠️ Tudo roda em **proot** (tradução de syscalls, sem root) e o vídeo é
-**renderizado por software** — sem aceleração de GPU. Vídeo em tela cheia, jogos e
-aplicações 3D vão sofrer.
+✅ **Com aceleração de GPU ativada** (`03-setup-gpu.sh`), a interface fica fluida
+e o navegador deixa de engasgar. Não pule esse passo —
+veja [aceleração de GPU](07-aceleracao-gpu.md).
+
+⚠️ Tudo roda em **proot**, que traduz syscalls. Isso custa desempenho em cargas
+pesadas de I/O e chamadas de sistema, mesmo com a GPU acelerada.
 
 ⚠️ Os 8 GB de RAM são compartilhados com o Android. KDE + navegador com muitas
 abas chega perto do limite. Se apertar, o XFCE é bem mais leve

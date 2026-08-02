@@ -55,6 +55,8 @@ sem depender do Samsung DeX.
 5. Para deixar mais rápido, veja as [dicas de desempenho](docs/05-dicas-desempenho.md).
 6. Para usar num **monitor externo** (hub USB-C com HDMI, teclado e mouse), veja
    [monitor externo](docs/06-monitor-externo.md).
+7. Para ativar a **GPU** (o maior ganho de desempenho do projeto), veja
+   [aceleração de GPU](docs/07-aceleracao-gpu.md).
 
 ---
 
@@ -65,6 +67,7 @@ sem depender do Samsung DeX.
 | [`scripts/00-setup-termux.sh`](scripts/00-setup-termux.sh) | Termux | Instala proot-distro, Termux-X11, PulseAudio e dependências |
 | [`scripts/01-install-ubuntu.sh`](scripts/01-install-ubuntu.sh) | Termux | Instala o Ubuntu via proot-distro |
 | [`scripts/02-setup-kde.sh`](scripts/02-setup-kde.sh) | **Dentro do Ubuntu** | Instala o KDE Plasma e ajusta o ambiente |
+| [`scripts/03-setup-gpu.sh`](scripts/03-setup-gpu.sh) | **Dentro do Ubuntu** | Ativa aceleração de GPU (Turnip/Adreno) — muda muito o desempenho |
 | [`scripts/start-kde.sh`](scripts/start-kde.sh) | Termux | Inicia o desktop KDE (método principal) |
 | [`scripts/start-kde-alt.sh`](scripts/start-kde-alt.sh) | Termux | Inicia o KDE pelo método alternativo (`-xstartup`), caso o principal falhe |
 | [`scripts/stop-kde.sh`](scripts/stop-kde.sh) | Termux | Encerra o desktop e libera memória |
@@ -73,7 +76,8 @@ sem depender do Samsung DeX.
 
 ## Aviso
 
-Tudo aqui roda **sem root** e em modo de usuário comum. O desempenho é bom no S23,
+Tudo aqui roda **sem root** e em modo de usuário comum. O desempenho é bom no S23
+— especialmente com a [GPU ativada](docs/07-aceleracao-gpu.md) —
 mas o KDE Plasma em proot pode ter pequenos bugs (efeitos visuais, bloqueio de tela).
 A configuração já desativa o que costuma dar problema. Se quiser algo mais leve e
 estável, o XFCE é uma ótima alternativa (veja as dicas de desempenho).
