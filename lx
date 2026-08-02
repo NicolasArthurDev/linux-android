@@ -1082,6 +1082,31 @@ cmd_start() {
         export DISPLAY=${DISPLAY_NUM}
         export PULSE_SERVER=127.0.0.1
         ${tz:+export TZ='${tz}'}
+
+        # Locale. Sem isto o LANG chega vazio na sessao e programas de TUI
+        # recusam a iniciar — o btop, por exemplo, morre com
+        # 'ERROR: No UTF-8 locale detected!'. O update-locale do setup grava
+        # /etc/default/locale, mas nada o le automaticamente em proot.
+        [ -r /etc/default/locale ] && . /etc/default/locale 2>/dev/null
+        case \"\${LANG:-}\" in
+            *[Uu][Tt][Ff]*) ;;              # ja e UTF-8
+            *) LANG=C.UTF-8 ;;              # vazio ou sem UTF-8: fallback seguro
+        esac
+        # Nao basta estar configurado: precisa estar GERADO. Se o locale-gen
+        # falhou, apontar LC_ALL para ele faz todo comando cuspir
+        # 'setlocale: cannot change locale'. Comparamos normalizando, porque
+        # o 'locale -a' imprime pt_BR.utf8 e o LANG diz pt_BR.UTF-8.
+        _lxw=\$(printf '%s' \"\$LANG\" | tr 'A-Z' 'a-z' | tr -d '-')
+        locale -a 2>/dev/null | tr 'A-Z' 'a-z' | tr -d '-' \\
+            | grep -qxF \"\$_lxw\" || LANG=C.UTF-8
+        unset _lxw
+        export LANG
+        export LC_ALL=\"\$LANG\"
+
+        # SHELL. O Konsole usa esta variavel para saber o que abrir; vazia,
+        # ele reclama com \"Could not find ''\" antes de cair no padrao.
+        if [ -x /usr/bin/zsh ]; then export SHELL=/usr/bin/zsh
+        else export SHELL=/bin/bash; fi
         export XDG_RUNTIME_DIR=/tmp/runtime-root
         mkdir -p \"\$XDG_RUNTIME_DIR\"; chmod 700 \"\$XDG_RUNTIME_DIR\"
         export QT_QPA_PLATFORM=xcb
@@ -1168,7 +1193,16 @@ cmd_stop() {
 cmd_shell() {
     require_termux "shell"
     require_ubuntu_installed
-    exec proot-distro login "$DISTRO" --shared-tmp
+    # Mesmo tratamento de locale/fuso da sessao grafica: o proot-distro
+    # sanitiza o ambiente, entao sem isto o shell nasce sem LANG.
+    local tz; tz="$(getprop persist.sys.timezone 2>/dev/null)"
+    exec proot-distro login "$DISTRO" --shared-tmp -- /bin/bash -lc "
+        [ -r /etc/default/locale ] && . /etc/default/locale 2>/dev/null
+        case \"\${LANG:-}\" in *[Uu][Tt][Ff]*) ;; *) LANG=C.UTF-8 ;; esac
+        export LANG LC_ALL=\"\$LANG\"
+        ${tz:+export TZ='${tz}'}
+        exec \"\${SHELL:-/bin/bash}\" -l
+    "
 }
 
 cmd_gpu() {

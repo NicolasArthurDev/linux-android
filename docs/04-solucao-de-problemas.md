@@ -75,6 +75,29 @@ Ou simplesmente rode `lx setup` de novo — ele detecta e resolve sozinho.
 > Por que X11 e não Wayland? O Termux:X11 é um **servidor X**. Uma sessão
 > Wayland não tem como desenhar nele.
 
+## `btop`: "No UTF-8 locale detected!" / acentos quebrados
+
+O `proot-distro` sanitiza o ambiente, então a sessão nascia sem `LANG`. Programas
+de terminal que desenham caixas e barras (btop, htop, fastfetch) recusam a
+iniciar sem um locale UTF-8.
+
+Corrigido — o `lx start` e o `lx shell` agora definem o locale. Basta atualizar:
+
+```bash
+cd ~/linux-android && git pull
+lx stop && lx start
+```
+
+Contorno imediato, sem atualizar: `btop --force-utf`
+
+## Konsole: "Could not find '', starting '/usr/bin/zsh' instead"
+
+Mesma causa: a variável `SHELL` chegava vazia na sessão, e o Konsole a usa para
+saber qual shell abrir. Ele acertava sozinho no fim (caía no zsh), mas avisava a
+cada aba nova.
+
+Também corrigido pelo `git pull` acima — o `lx start` passou a exportar `SHELL`.
+
 ## Sem áudio
 
 - O PulseAudio precisa estar rodando no Termux (o `lx start` inicia).
