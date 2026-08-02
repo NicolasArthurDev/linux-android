@@ -1,6 +1,7 @@
 # 1. Pré-requisitos
 
-Antes de rodar qualquer script, você precisa instalar **três apps** no Galaxy S23.
+Antes de rodar qualquer script, você precisa instalar **dois apps** no Galaxy S23
+(um terceiro é citado mais abaixo apenas para dizer que **não** é necessário).
 
 ## 🚨 A regra que quebra tudo: uma origem só
 
@@ -12,7 +13,7 @@ diferentes.
 **Misturar origens não é "menos ideal", é impossível.** Você recebe
 `INSTALL_FAILED_SHARED_USER_INCOMPATIBLE` ou "App não instalado" e trava.
 
-> **Recomendação: baixe os três do GitHub.** Além de garantir a assinatura
+> **Recomendação: baixe tudo do GitHub.** Além de garantir a assinatura
 > consistente, é o único caminho que deixa aberta a variante de melhor
 > desempenho do Termux:X11 (veja abaixo).
 >
@@ -63,26 +64,58 @@ Na mesma release existem dois APKs:
 > pkg install ./termux-x11-nightly-*.deb
 > ```
 
-## App 3 — Termux:API
+## App 3 — Termux:API — ⛔ **NÃO é necessário**
 
-Necessário para o **wake-lock automático** do `lx start` — sem ele, o Android
-mata o Termux em segundo plano e o desktop cai quando você troca de app.
+**Você pode pular este.** Nada neste projeto precisa dele.
+
+Uma versão anterior deste guia dizia que o Termux:API era necessário para o
+wake-lock. **Isso estava errado.** O `termux-wake-lock` vem do pacote
+`termux-tools`, que é marcado como *essential* e **já vem instalado no Termux**.
+Ele conversa direto com o serviço do próprio app Termux:
+
+```sh
+am startservice -a com.termux.service_wake_lock com.termux/.app.TermuxService
+```
+
+Nenhum plugin envolvido. O Termux:API serve para **câmera, SMS, sensores,
+notificações, GPS** — coisas que este projeto não usa.
+
+Se ainda assim quiser instalar (para outros usos):
 
 - **GitHub:** https://github.com/termux/termux-api/releases
-- **Versão atual: `v0.53.0`** (set/2025)
-- **Arquivo:** `termux-api-app_v0.53.0+github.debug.apk` (~8 MB)
+- **Versão atual: `v0.53.0`** (set/2025) — `termux-api-app_v0.53.0+github.debug.apk`
+- Precisa ser da **mesma origem** que o Termux (é um plugin de verdade).
 
-> Este é um plugin de verdade: **precisa** ser da mesma origem que o Termux.
+### Se aparecer "App blocked to protect your device"
+
+É o **Google Play Protect**, não o Android. Ele bloqueia o Termux:API por
+heurística, porque o app pede permissões sensíveis (SMS, câmera, localização) —
+é falso positivo conhecido, mas o bloqueio é real.
+
+Como o app é dispensável aqui, **a resposta mais simples é não instalar**. Se
+precisar dele de verdade:
+
+1. Play Store → toque na sua foto de perfil → **Play Protect**
+2. Ícone de engrenagem (⚙️) → desligue **"Verificar apps com o Play Protect"**
+3. Instale o APK
+4. **Ligue o Play Protect de volta**
+
+Em alguns casos a própria tela de bloqueio tem **"Mais detalhes" → "Instalar
+mesmo assim"**.
+
+> ⚠️ Só desligue o Play Protect para instalar um APK que você baixou da fonte
+> oficial e confia — neste caso, o repositório do Termux no GitHub. E religue
+> logo em seguida.
 
 ---
 
 ## Instalando os APKs
 
-1. Baixe os **três** `.apk` no celular, todos do GitHub.
+1. Baixe os **dois** `.apk` obrigatórios no celular, ambos do GitHub.
 2. Ao abrir o primeiro, o Android pede para permitir "instalar apps de fontes
    desconhecidas" — autorize.
-3. Instale **nesta ordem**: **Termux** → **Termux:API** → **Termux:X11**.
-   O Termux precisa vir primeiro porque os outros se apoiam no UID dele.
+3. Instale **nesta ordem**: **Termux** → **Termux:X11**.
+   O Termux precisa vir primeiro.
 4. **Abra o Termux:X11 pelo menos uma vez** antes de rodar o `lx start`. Ele
    precisa ter sido iniciado ao menos uma vez para registrar o serviço.
 
@@ -91,7 +124,7 @@ Se algum der "App não instalado" ou
 algum Termux de outra origem instalado. Desinstale **todos** (Termux e plugins)
 e recomece do passo 1.
 
-> Depois de instalar, `lx doctor` confirma se o Android enxerga os três apps.
+> Depois de instalar, `lx doctor` confirma se o Android enxerga os apps.
 
 ---
 

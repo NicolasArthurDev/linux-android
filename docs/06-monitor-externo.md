@@ -255,8 +255,9 @@ lx start --extra "-force-bgra"
 
 ### O desktop cai quando eu troco de app no celular
 
-Wake-lock não ativou (o pacote `termux-api` precisa do **app** Termux:API
-instalado) ou a otimização de bateria está ligada. Confira os dois.
+Wake-lock não ativou ou a otimização de bateria está ligada. A causa mais
+provável, porém, é a **restrição de processos filhos** —
+veja [pré-requisitos](01-pre-requisitos.md).
 
 ### O hub desconecta sozinho
 

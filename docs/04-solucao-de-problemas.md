@@ -85,8 +85,8 @@ Se o desktop cai sempre por volta do mesmo ponto (ex.: ao abrir o navegador),
 ## O Android "mata" o Termux em segundo plano
 
 - Desative a otimização de bateria (veja [pré-requisitos](01-pre-requisitos.md)).
-- O `lx start` já ativa o **wake-lock** automaticamente (precisa do app
-  Termux:API instalado).
+- O `lx start` já ativa o **wake-lock** automaticamente. Ele vem do pacote
+  `termux-tools`, que já é parte do Termux — **não** precisa do Termux:API.
 - Confira também a restrição de processos filhos, acima.
 
 ## "KDE roda como root" / avisos de segurança

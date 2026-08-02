@@ -226,10 +226,11 @@ cmd_doctor() {
              info "https://github.com/termux/termux-x11/releases"
              problems=$((problems+1)); fi
 
-        if check_api_app; then ok "Termux:API instalado"
-        else warn "Termux:API não instalado — sem ele o wake-lock não funciona"
-             info "e o desktop cai quando você troca de app"
-             problems=$((problems+1)); fi
+        # O Termux:API NAO e necessario aqui. O termux-wake-lock vem do pacote
+        # termux-tools (essencial, ja instalado) e fala direto com o TermuxService
+        # do proprio app Termux. O Termux:API so serve para camera, SMS, sensores.
+        if check_api_app; then ok "Termux:API instalado (opcional)"
+        else info "Termux:API não instalado — tudo bem, este projeto não precisa dele"; fi
 
         step "Restrição de processos filhos (Phantom Process Killer)"
         if check_phantom_killer; then
@@ -333,7 +334,7 @@ install_termux_base() {
     pkg update -y || true
 
     step "Instalando proot-distro, Termux-X11, PulseAudio e utilitários..."
-    pkg install -y proot-distro termux-x11-nightly pulseaudio git wget curl nano termux-api \
+    pkg install -y proot-distro termux-x11-nightly pulseaudio git wget curl nano \
         || die "falha ao instalar os pacotes base."
 
     step "Instalando suporte a GPU alternativo (virgl)..."
@@ -921,7 +922,7 @@ cmd_start() {
     step "Encerrando sessões antigas..."
     stop_everything quiet
 
-    termux-wake-lock 2>/dev/null || warn "wake-lock indisponível (instale o app Termux:API)"
+    termux-wake-lock 2>/dev/null || warn "não consegui adquirir o wake-lock"
 
     step "Iniciando o PulseAudio..."
     pulseaudio --start --exit-idle-time=-1 \

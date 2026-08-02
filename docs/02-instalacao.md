@@ -90,7 +90,7 @@ fazer por você.
 lx doctor
 ```
 
-Ele verifica: os dois APKs (Termux:X11 e Termux:API), a restrição de processos
+Ele verifica: o APK do Termux:X11, a restrição de processos
 filhos, os pacotes, o Ubuntu, o KDE, a GPU e o que está rodando.
 
 Resolva o que ele apontar antes de seguir — em especial a
