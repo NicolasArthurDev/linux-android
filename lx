@@ -41,11 +41,37 @@ detect_context() {
 
 readonly CTX="$(detect_context)"
 
+# ---------------------------------------------------------------------------
+#  Onde o proot-distro guarda o rootfs
+#
+#  O layout MUDOU quando o proot-distro foi reescrito em Python (v5, 2026):
+#
+#      v5+     <PREFIX>/var/lib/proot-distro/containers/<nome>/rootfs
+#      legado  <PREFIX>/var/lib/proot-distro/installed-rootfs/<nome>
+#
+#  Assumir só o caminho legado fazia o script instalar o Ubuntu com sucesso e,
+#  na linha seguinte, jurar que ele não estava instalado. Procuramos os dois.
+#
+#  É função (e não constante) porque o diretório passa a existir no meio da
+#  execução, logo após o 'proot-distro install'.
+# ---------------------------------------------------------------------------
+resolve_rootfs() {
+    if [ "$CTX" != "termux" ]; then ROOTFS=""; return 0; fi
+    local base="${PREFIX}/var/lib/proot-distro"
+    local atual="${base}/containers/${DISTRO}/rootfs"
+    local legado="${base}/installed-rootfs/${DISTRO}"
+    if   [ -d "$atual" ];  then ROOTFS="$atual"
+    elif [ -d "$legado" ]; then ROOTFS="$legado"
+    else                        ROOTFS="$atual"   # ainda não instalado
+    fi
+}
+
+ROOTFS=""
+resolve_rootfs
+
 if [ "$CTX" = "termux" ]; then
-    readonly ROOTFS="${PREFIX}/var/lib/proot-distro/installed-rootfs/${DISTRO}"
     STATE_DIR="${LX_STATE_DIR:-${PREFIX}/var/lib/lx}"
 else
-    readonly ROOTFS=""
     STATE_DIR="${LX_STATE_DIR:-/var/lib/lx}"
 fi
 STATE_FILE="${STATE_DIR}/state"
@@ -146,6 +172,7 @@ require_termux() {
 }
 
 require_ubuntu_installed() {
+    resolve_rootfs
     [ -d "$ROOTFS" ] || die "Ubuntu não está instalado. Rode primeiro: ./lx setup"
 }
 
@@ -252,6 +279,7 @@ cmd_doctor() {
             || info "virglrenderer-android ausente (opcional)"
 
         step "Ubuntu"
+        resolve_rootfs
         if [ -d "$ROOTFS" ]; then
             ok "instalado em $ROOTFS"
             if [ -x "${ROOTFS}/usr/bin/startplasma-x11" ]; then ok "KDE Plasma instalado"
@@ -353,12 +381,14 @@ install_ubuntu() {
     require_termux "setup"
     header "2/4 — Instalando o Ubuntu"
 
+    resolve_rootfs
     if [ -d "$ROOTFS" ]; then
         ok "Ubuntu já instalado."
     else
         step "Baixando e instalando (pode demorar bastante)..."
         proot-distro install "$DISTRO" || die "falha ao instalar o Ubuntu."
-        ok "Ubuntu instalado."
+        resolve_rootfs   # o rootfs acabou de nascer
+        ok "Ubuntu instalado em $ROOTFS"
     fi
     state_set ubuntu
 }
@@ -631,7 +661,10 @@ install_claude_wrapper() {
 set -euo pipefail
 
 DISTRO="ubuntu"
-ROOTFS="${PREFIX}/var/lib/proot-distro/installed-rootfs/${DISTRO}"
+# O proot-distro v5 mudou o layout; aceitamos os dois.
+BASE="${PREFIX}/var/lib/proot-distro"
+ROOTFS="${BASE}/containers/${DISTRO}/rootfs"
+[ -d "$ROOTFS" ] || ROOTFS="${BASE}/installed-rootfs/${DISTRO}"
 
 if [ ! -d "$ROOTFS" ]; then
     echo "claude: o Ubuntu não está instalado. Rode: lx setup" >&2
@@ -841,6 +874,7 @@ cmd_setup() {
     state_has termux || install_termux_base
     state_has ubuntu || install_ubuntu
 
+    resolve_rootfs
     if [ -x "${ROOTFS}/usr/bin/startplasma-x11" ]; then
         state_set kde
         ok "KDE já instalado."
@@ -1009,7 +1043,10 @@ stop_everything() {
     done
     sleep 1
     pkill -f "[p]root-distro" 2>/dev/null || true
-    pkill -f "[i]nstalled-rootfs/${DISTRO}" 2>/dev/null || true
+    # Casa os dois layouts do proot-distro (containers/<n>/rootfs e
+    # installed-rootfs/<n>). O [p] evita que o padrão case com o próprio pkill.
+    pkill -f "[c]ontainers/${DISTRO}/rootfs"   2>/dev/null || true
+    pkill -f "[i]nstalled-rootfs/${DISTRO}"    2>/dev/null || true
     pkill -f "[v]irgl_test_server" 2>/dev/null || true
     pkill -f "com.termux.x11" 2>/dev/null || true
     pkill -f "termux.x11" 2>/dev/null || true
