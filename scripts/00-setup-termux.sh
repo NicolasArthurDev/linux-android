@@ -13,6 +13,10 @@ pkg upgrade -y
 echo "==> Habilitando o repositório x11 (necessário para o Termux-X11)..."
 pkg install -y x11-repo
 
+# O índice do repositório recém-habilitado precisa ser lido antes de instalar
+# qualquer pacote dele, senão dá "package not found" de forma intermitente.
+pkg update -y
+
 echo "==> Instalando proot-distro, Termux-X11, PulseAudio e utilitários..."
 pkg install -y \
     proot-distro \
@@ -31,8 +35,11 @@ cat <<'MSG'
 ============================================================
  Termux preparado com sucesso!
 
- Lembre-se: o APP "Termux:X11" precisa estar instalado
- separadamente (veja docs/01-pre-requisitos.md).
+ Lembre-se dos APKs que precisam ser instalados à mão
+ (veja docs/01-pre-requisitos.md):
+   - Termux:X11  (obrigatório — é a "tela")
+   - Termux:API  (opcional — o pacote 'termux-api' instalado aqui
+                  só funciona se o app também estiver instalado)
 
  Próximo passo:
      ./01-install-ubuntu.sh

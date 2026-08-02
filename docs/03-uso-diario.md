@@ -5,7 +5,7 @@
 No **Termux**:
 
 ```bash
-cd ~/linux-in-s23/scripts
+cd ~/linux-android/scripts
 ./start-kde.sh
 ```
 
@@ -29,8 +29,8 @@ Sempre encerre com o `stop-kde.sh` para não deixar processos consumindo bateria
 Crie um atalho no Termux para iniciar com um comando curto:
 
 ```bash
-echo 'alias kde="bash ~/linux-in-s23/scripts/start-kde.sh"' >> ~/.bashrc
-echo 'alias kde-off="bash ~/linux-in-s23/scripts/stop-kde.sh"' >> ~/.bashrc
+echo 'alias kde="bash ~/linux-android/scripts/start-kde.sh"' >> ~/.bashrc
+echo 'alias kde-off="bash ~/linux-android/scripts/stop-kde.sh"' >> ~/.bashrc
 source ~/.bashrc
 ```
 

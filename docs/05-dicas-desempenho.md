@@ -67,14 +67,31 @@ apt install -y firefox-esr
 ## Programas úteis para instalar (dentro do Ubuntu)
 
 ```bash
-apt install -y \
-    firefox-esr \      # navegador
-    libreoffice \      # office
-    code \             # (precisa do repo da Microsoft) editor de código
-    git \
-    htop \             # monitor de recursos
-    neofetch
+apt install -y firefox-esr libreoffice git htop neofetch
 ```
+
+| Pacote | Para quê |
+|--------|----------|
+| `firefox-esr` | navegador (o Firefox normal do Ubuntu é snap e não roda em proot) |
+| `libreoffice` | suíte de escritório |
+| `git` | controle de versão |
+| `htop` | monitor de recursos |
+| `neofetch` | info do sistema |
+
+O **VS Code** não está na lista porque exige o repositório da Microsoft. Se quiser:
+
+```bash
+apt install -y wget gpg
+wget -qO- https://packages.microsoft.com/keys/microsoft.asc \
+    | gpg --dearmor > /usr/share/keyrings/microsoft.gpg
+echo "deb [arch=arm64 signed-by=/usr/share/keyrings/microsoft.gpg] \
+https://packages.microsoft.com/repos/code stable main" \
+    > /etc/apt/sources.list.d/vscode.list
+apt update && apt install -y code
+```
+
+> ⚠️ Não coloque comentários `#` no fim de linhas continuadas com `\` num
+> `apt install` — isso quebra a continuação e o comando falha.
 
 ---
 

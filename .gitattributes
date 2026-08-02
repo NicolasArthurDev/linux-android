@@ -1,0 +1,18 @@
+# Scripts de shell PRECISAM ser LF. Um .sh com CRLF falha no Android com
+# "bad interpreter: /bin/bash^M" ou com heredocs que nunca terminam — erros
+# confusos e difíceis de diagnosticar no celular.
+#
+# Isto protege contra checkouts em máquinas com core.autocrlf=true (Windows/WSL),
+# independente da config local de quem clonar.
+*.sh    text eol=lf
+
+# Docs e config também padronizados em LF.
+*.md    text eol=lf
+LICENSE text eol=lf
+.gitignore  text eol=lf
+.gitattributes text eol=lf
+
+# Binários, se algum dia entrarem: nunca converter.
+*.apk   binary
+*.png   binary
+*.jpg   binary

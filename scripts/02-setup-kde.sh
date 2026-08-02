@@ -6,6 +6,10 @@
 #
 set -e
 
+# Precisa valer TAMBÉM para o `apt upgrade` abaixo: tzdata/locales abrem prompt
+# interativo no upgrade e travam o script se isso ficar só no `apt install`.
+export DEBIAN_FRONTEND=noninteractive
+
 if [ ! -f /etc/os-release ] || ! grep -qi ubuntu /etc/os-release; then
     echo "ERRO: este script deve rodar DENTRO do Ubuntu (proot-distro login ubuntu)."
     exit 1
@@ -18,7 +22,12 @@ apt upgrade -y
 echo "==> Instalando o KDE Plasma e dependências essenciais..."
 # kde-plasma-desktop = base do Plasma (mais enxuto que o kubuntu-desktop completo).
 # dbus-x11 = necessário para o Plasma iniciar via dbus-launch.
-DEBIAN_FRONTEND=noninteractive apt install -y \
+# libgl1-mesa-dri + mesa-utils = renderização por software (LIBGL_ALWAYS_SOFTWARE).
+# x11-xserver-utils = xrandr, usado para ajustar resolução no monitor externo.
+apt install -y \
+    libgl1-mesa-dri \
+    mesa-utils \
+    x11-xserver-utils \
     kde-plasma-desktop \
     dbus-x11 \
     konsole \
@@ -75,7 +84,7 @@ cat <<'MSG'
      exit
 
  Depois, no Termux:
-     cd ~/linux-in-s23/scripts
+     cd ~/linux-android/scripts
      ./start-kde.sh
 ============================================================
 MSG

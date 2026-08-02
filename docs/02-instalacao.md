@@ -12,8 +12,8 @@ Abra o **Termux** e rode:
 
 ```bash
 pkg install -y git
-git clone https://github.com/NicolasArthurDev/linux-in-s23.git
-cd linux-in-s23/scripts
+git clone https://github.com/NicolasArthurDev/linux-android.git
+cd linux-android/scripts
 chmod +x *.sh
 ```
 
@@ -60,7 +60,7 @@ mas o jeito mais simples é copiá-lo para dentro. Faça assim:
 cd /root
 # baixe de novo só este script, ou cole o conteúdo:
 apt update && apt install -y wget
-wget https://raw.githubusercontent.com/NicolasArthurDev/linux-in-s23/main/scripts/02-setup-kde.sh
+wget https://raw.githubusercontent.com/NicolasArthurDev/linux-android/main/scripts/02-setup-kde.sh
 chmod +x 02-setup-kde.sh
 ./02-setup-kde.sh
 ```
@@ -78,7 +78,7 @@ exit
 De volta ao Termux (fora do Ubuntu):
 
 ```bash
-cd ~/linux-in-s23/scripts
+cd ~/linux-android/scripts
 ./start-kde.sh
 ```
 
@@ -102,7 +102,7 @@ Para fechar o desktop e liberar memória, volte ao Termux e rode:
 ## Resumo dos comandos do dia a dia
 
 ```bash
-cd ~/linux-in-s23/scripts
+cd ~/linux-android/scripts
 ./start-kde.sh   # iniciar
 ./stop-kde.sh    # parar
 ```

@@ -7,8 +7,12 @@
 set -e
 
 DISTRO="ubuntu"
+ROOTFS="${PREFIX}/var/lib/proot-distro/installed-rootfs/${DISTRO}"
 
-if proot-distro list 2>/dev/null | grep -q "^${DISTRO} .*installed"; then
+# Nota: NÃO dá para detectar isso com `proot-distro list | grep`. A saída do
+# list é multi-linha ("Alias: ubuntu" / "Status: installed"), então qualquer
+# grep de linha única falha silenciosamente. Checar o rootfs é confiável.
+if [ -d "${ROOTFS}" ]; then
     echo "==> Ubuntu já parece estar instalado."
     echo "    Para reinstalar do zero: proot-distro remove ${DISTRO}"
 else
@@ -26,7 +30,7 @@ cat <<'MSG'
      proot-distro login ubuntu
      # (dentro do Ubuntu)
      apt update && apt install -y wget
-     wget https://raw.githubusercontent.com/NicolasArthurDev/linux-in-s23/main/scripts/02-setup-kde.sh
+     wget https://raw.githubusercontent.com/NicolasArthurDev/linux-android/main/scripts/02-setup-kde.sh
      chmod +x 02-setup-kde.sh
      ./02-setup-kde.sh
 

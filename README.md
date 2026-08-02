@@ -7,6 +7,13 @@ sem depender do Samsung DeX.
 > Stack escolhida: **Termux-X11** (display nativo, melhor desempenho) +
 > **Ubuntu** (via `proot-distro`) + **KDE Plasma** (desktop completo).
 
+**Dois modos de uso:**
+
+1. **Na tela do celular** — funciona direto, sem hardware extra.
+2. **Como computador de mesa** — hub USB-C com HDMI + USB + carregador, virando
+   um desktop Linux com monitor, teclado e mouse. Isso exige um passo extra de
+   configuração no Android: veja [monitor externo](docs/06-monitor-externo.md).
+
 > ⚠️ **Status do projeto:** guia baseado em conhecimento e nas docs oficiais do
 > Termux/proot-distro, **validação em campo (no S23) ainda pendente**. O fluxo e
 > os ajustes são bem fundamentados, mas nomes exatos de pacotes e detalhes podem
@@ -46,6 +53,8 @@ sem depender do Samsung DeX.
 3. Aprenda o [uso diário](docs/03-uso-diario.md) (iniciar/parar o desktop).
 4. Se algo der errado, veja a [solução de problemas](docs/04-solucao-de-problemas.md).
 5. Para deixar mais rápido, veja as [dicas de desempenho](docs/05-dicas-desempenho.md).
+6. Para usar num **monitor externo** (hub USB-C com HDMI, teclado e mouse), veja
+   [monitor externo](docs/06-monitor-externo.md).
 
 ---
 

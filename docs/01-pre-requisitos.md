@@ -26,6 +26,23 @@ O app que mostra a tela do desktop. Ele **não** está na Play Store.
 > O pacote `termux-x11-nightly` (instalado pelo script no Termux) e o **APK**
 > Termux:X11 precisam ser da **mesma origem/época**. Se você atualizar um,
 > atualize o outro, ou a tela pode não conectar.
+>
+> 💡 A forma mais segura de garantir isso é pegar **os dois da mesma release
+> nightly** do GitHub: baixe o `app-arm64-v8a-debug.apk` **e** o `.deb`
+> correspondente, e no Termux instale o `.deb` com
+> `pkg install ./termux-x11-nightly_*.deb` em vez do pacote do repositório.
+
+## App 3 — Termux:API (recomendado)
+
+Necessário para o **wake-lock automático** do `start-kde.sh` — sem ele, o Android
+mata o Termux em segundo plano e o desktop cai quando você troca de app.
+
+- **F-Droid:** https://f-droid.org/packages/com.termux.api/
+- **Ou GitHub:** https://github.com/termux/termux-api/releases
+
+> Instale o APK da **mesma origem** que o app Termux (F-Droid com F-Droid,
+> GitHub com GitHub). APKs de origens diferentes têm assinaturas diferentes e não
+> conversam entre si.
 
 ---
 

@@ -18,6 +18,21 @@
   ```
   Ele inicia o servidor X11 e o KDE juntos via `-xstartup`, que alguns aparelhos
   acham mais estável.
+- **Tela preta mesmo com o KDE rodando** — é um problema de desenho do
+  Termux:X11, não do KDE. Use a flag oficial de contorno:
+  ```bash
+  ./stop-kde.sh
+  X11_EXTRA="-legacy-drawing" ./start-kde.sh
+  ```
+
+## Cores trocadas (azul aparece como vermelho)
+
+Alguns aparelhos invertem a ordem dos canais de cor:
+
+```bash
+./stop-kde.sh
+X11_EXTRA="-force-bgra" ./start-kde.sh
+```
 
 ## "Cannot open display :0" / KDE não conecta
 
@@ -36,6 +51,9 @@
   kwriteconfig5 --file kwinrc --group Compositing --key Enabled false
   exit
   ```
+  > No Ubuntu 24.04 o comando é `kwriteconfig5` (Plasma 5). Se a imagem do
+  > proot-distro for Ubuntu 25.x ou mais nova, o Plasma é 6 e o comando vira
+  > `kwriteconfig6`. Cheque com `kwriteconfig6 --help` se o 5 não existir.
 - Confirme que `LIBGL_ALWAYS_SOFTWARE=1` está no `start-kde.sh` (renderização por software).
 
 ## Sem áudio
