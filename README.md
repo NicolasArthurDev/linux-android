@@ -128,6 +128,7 @@ Dois detalhes que o script resolve por você:
 | [dicas de desempenho](docs/05-dicas-desempenho.md) | deixar mais leve, alternativas |
 | [monitor externo](docs/06-monitor-externo.md) | hub USB-C, HDMI, DeX — virar um computador |
 | [aceleração de GPU](docs/07-aceleracao-gpu.md) | Turnip/Adreno, o maior ganho do projeto |
+| [dentro do desktop](docs/08-dentro-do-desktop.md) | subiu o KDE, e agora? terminal, rede, deixar bonito |
 
 ---
 

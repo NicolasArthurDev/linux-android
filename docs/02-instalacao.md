@@ -151,4 +151,7 @@ lx doctor  # quando algo der errado
 lx         # menu, se preferir não decorar
 ```
 
-Veja mais em [uso diário](03-uso-diario.md).
+Subiu o desktop? Veja [dentro do desktop](08-dentro-do-desktop.md) — terminal,
+o falso aviso de rede, e como deixar menos feio.
+
+Veja também [uso diário](03-uso-diario.md).

@@ -184,7 +184,11 @@ run_in_ubuntu() {
     [ -f "$self" ] || die "não consegui localizar o próprio script para copiar."
     install -m 755 "$self" "${ROOTFS}/root/lx" \
         || die "não consegui copiar o lx para dentro do Ubuntu."
-    proot-distro login "$DISTRO" --shared-tmp -- /root/lx "$@"
+    # Repassa o fuso do Android: o proot-distro sanitiza o ambiente, então
+    # exportar aqui fora não bastaria.
+    local tz; tz="$(getprop persist.sys.timezone 2>/dev/null)"
+    proot-distro login "$DISTRO" --shared-tmp -- \
+        /bin/bash -c "export LX_TZ=$(printf '%q' "${tz:-}"); exec /root/lx $*"
 }
 
 # Baixa uma URL para um arquivo. Usa curl ou wget, o que existir.
@@ -480,6 +484,14 @@ install_kde_inside() {
     step "Configurando locale..."
     locale-gen en_US.UTF-8 pt_BR.UTF-8 || true
     update-locale LANG=pt_BR.UTF-8 || true
+
+    # Fuso horário. O container nasce em UTC; o LX_TZ vem do Android
+    # (getprop persist.sys.timezone) repassado por quem nos invocou.
+    if [ -n "${LX_TZ:-}" ] && [ -f "/usr/share/zoneinfo/${LX_TZ}" ]; then
+        step "Fuso horário: ${LX_TZ}"
+        ln -sf "/usr/share/zoneinfo/${LX_TZ}" /etc/localtime
+        printf '%s\n' "${LX_TZ}" > /etc/timezone
+    fi
 
     step "Ajustando o KDE para proot..."
     mkdir -p /root/.config
@@ -1057,11 +1069,19 @@ cmd_start() {
     # ambiente estranho não o definir, a falha seria um erro cru de bash.
     export XDG_RUNTIME_DIR="${TMPDIR:-$PREFIX/tmp}"
 
+    # Fuso horário: o proot não herda o do Android, então o relógio do KDE
+    # aparece em UTC (3h à frente no Brasil). Lemos a zona do Android e a
+    # repassamos — assim não precisamos alterar nada dentro do container.
+    local tz
+    tz="$(getprop persist.sys.timezone 2>/dev/null)"
+    [ -n "$tz" ] && info "fuso horário: $tz"
+
     # O ambiente que roda dentro do Ubuntu é o mesmo nos dois métodos.
     local inner
     inner="
         export DISPLAY=${DISPLAY_NUM}
         export PULSE_SERVER=127.0.0.1
+        ${tz:+export TZ='${tz}'}
         export XDG_RUNTIME_DIR=/tmp/runtime-root
         mkdir -p \"\$XDG_RUNTIME_DIR\"; chmod 700 \"\$XDG_RUNTIME_DIR\"
         export QT_QPA_PLATFORM=xcb
