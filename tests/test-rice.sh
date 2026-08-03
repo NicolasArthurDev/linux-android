@@ -25,6 +25,11 @@ chk "corner-radius definido" "sim" "$(grep -q '^corner-radius' "$C/picom/picom.c
 # Procura DIRETIVA de blur, nao a palavra: o proprio comentario do arquivo
 # explica por que o blur foi omitido, e casava com um grep ingenuo.
 chk "sem diretiva de blur" "sim" "$(grep -qiE '^ *blur' "$C/picom/picom.conf" && echo nao || echo sim)"
+# glx congela a renderizacao sob o Termux:X11 (yshui/picom#1395): tela preta
+# com todo o desktop rodando. O xrender nao tem o problema e mantem os cantos.
+chk "backend = xrender (nao glx)" "sim" "$(grep -qE '^backend *= *"xrender"' "$C/picom/picom.conf" && echo sim || echo nao)"
+chk "glx nao esta ativo"          "sim" "$(grep -qE '^backend *= *"glx"' "$C/picom/picom.conf" && echo nao || echo sim)"
+chk_match "bspwmrc respeita LX_NO_PICOM" "LX_NO_PICOM" "$(cat "$C/bspwm/bspwmrc")"
 chk "toda atribuicao termina em ;" "0" "$(grep -cE '^[a-z-]+ *=[^;]*$' "$C/picom/picom.conf")"
 
 echo "-- sxhkd: atalhos e comandos balanceados"

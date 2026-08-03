@@ -809,6 +809,7 @@ install_nerd_font_inside() {
 write_rice_configs() {
     local H="${HOME:-/root}"
     step "Escrevendo configurações em ${H}/.config"
+    info "arquivos existentes são sobrescritos (é assim que as correções chegam)"
     mkdir -p "$H/.config"/{bspwm,sxhkd,polybar,picom,rofi,kitty,dunst}
 
     # ---------------- bspwm ----------------
@@ -849,7 +850,13 @@ else
     lxlog "xsetroot AUSENTE (vem no pacote x11-xserver-utils)"
 fi
 
-start picom --config "$HOME/.config/picom/picom.conf"
+# LX_NO_PICOM=1 desliga o compositor. Serve para isolar problemas de
+# renderizacao: se a tela aparece sem picom, o culpado e ele.
+if [ -n "${LX_NO_PICOM:-}" ]; then
+    lxlog "picom desativado por LX_NO_PICOM"
+else
+    start picom --config "$HOME/.config/picom/picom.conf"
+fi
 start dunst
 
 if [ -x "$HOME/.config/polybar/launch.sh" ]; then
@@ -955,7 +962,17 @@ SXHKD
 # em proot. Cantos arredondados + transparencia dao o mesmo visual por uma
 # fracao do custo.
 
-backend = "glx";        # com a GPU ativa (FD740). Se piscar, use "xrender".
+# backend: xrender, NAO glx.
+#
+# O backend glx congela a renderizacao sob o Termux:X11 — todo o desktop sobe
+# (bspwm, polybar, terminal) e a tela fica PRETA, porque o picom redireciona as
+# janelas para buffers e nunca consegue apresenta-las. E um problema conhecido
+# do picom com glx (yshui/picom#1395), nao especifico daqui.
+#
+# O xrender nao tem esse problema e TAMBEM faz cantos arredondados, entao o
+# visual nao perde nada. Se quiser experimentar o glx, troque aqui — mas se a
+# tela ficar preta, foi isso.
+backend = "xrender";
 vsync = false;          # true costuma causar stutter sob o Termux:X11
 
 corner-radius = 12;
@@ -1688,7 +1705,7 @@ cmd_start() {
     require_termux "start"
     require_ubuntu_installed
 
-    local gpu_mode="auto" x11_extra="${X11_EXTRA:-}" use_alt=0 de="${LX_DE:-$(read_default_de)}" verbose=0
+    local gpu_mode="auto" x11_extra="${X11_EXTRA:-}" use_alt=0 de="${LX_DE:-$(read_default_de)}" verbose=0 no_picom=0
 
     while [ $# -gt 0 ]; do
         case "$1" in
@@ -1705,6 +1722,7 @@ cmd_start() {
                 [ $# -ge 2 ] || die "--de exige um valor: kde | bspwm | xfce"
                 de="$2"; shift 2 ;;
             --alt)   use_alt=1; shift ;;
+            --no-picom) no_picom=1; shift ;;
             -v|--verbose) verbose=1; shift ;;
             *) die "opção desconhecida em 'start': $1" ;;
         esac
@@ -1733,6 +1751,18 @@ cmd_start() {
             kde)   info "rode:  lx setup" ;;
         esac
         exit 1
+    fi
+
+    # Os arquivos de config do rice sao escritos pelo 'lx rice', nao pelo
+    # 'git pull'. Sem este aviso, quem atualiza o lx continua rodando configs
+    # antigos e as correcoes nao surtem efeito — foi o que aconteceu com o log
+    # de passos do bspwmrc, que nunca apareceu porque o arquivo era o antigo.
+    if [ "$de" = "bspwm" ]; then
+        local rc="${ROOTFS}/root/.config/bspwm/bspwmrc"
+        if [ -f "$rc" ] && ! grep -q "lxlog" "$rc" 2>/dev/null; then
+            warn "os arquivos de configuração do rice são de uma versão antiga"
+            info "rode 'lx rice' para regerá-los (o git pull não faz isso)"
+        fi
     fi
 
     header "Iniciando o desktop"
@@ -1819,6 +1849,7 @@ cmd_start() {
         # sempre e inunda o terminal com milhares de linhas identicas.
         # Nada aqui usa PipeWire — o audio vai pelo PulseAudio.
         export QT_LOGGING_RULES='kpipewire*=false'
+        ${no_picom:+export LX_NO_PICOM=1}
 
         case '${gpu_mode}' in
             turnip)
@@ -2146,7 +2177,9 @@ modelo $(getprop ro.product.model 2>/dev/null || echo '?')"
 
     echo "--- processos agora ---"
     for b in termux-x11 startplasma-x11 bspwm polybar picom pulseaudio proot; do
-        printf '%-18s %s\n' "$b" "$(pgrep -c -f "[${b:0:1}]${b:1}" 2>/dev/null || echo 0)"
+        # 'pgrep -c' ja imprime 0 e sai com codigo 1 quando nao acha nada; o
+        # '|| echo 0' antigo duplicava a saida e quebrava o alinhamento.
+        printf '%-18s %s\n' "$b" "$(pgrep -c -f "[${b:0:1}]${b:1}" 2>/dev/null | head -1)"
     done
     echo
 
@@ -2350,6 +2383,8 @@ ${C_BOLD}COMANDOS${C_RESET}
         --de AMBIENTE     kde (padrão) | bspwm | xfce
         --gpu MODO        auto (padrão) | turnip | virgl | software
         --alt             método alternativo (-xstartup), se o normal falhar
+        --no-picom        inicia sem o compositor (isola problemas de
+                          renderização — tela preta com tudo rodando)
         -v, --verbose     mostra a saída da sessão no terminal em vez de
                           mandar para o log (útil para diagnosticar)
         --extra "FLAGS"   flags do termux-x11:

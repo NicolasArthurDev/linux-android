@@ -170,18 +170,35 @@ celular, o KDE continua sendo o prático.
 
 ## Se algo der errado
 
-**Tela preta ao entrar** — provavelmente o picom. Comente a linha dele no
-`bspwmrc` e recarregue. Se resolver, troque o backend:
+**Tela preta com tudo rodando** — era o caso mais comum, e a causa é o
+compositor com o backend **glx**.
 
-```conf
-backend = "xrender";    # em vez de "glx"
+O picom redireciona todas as janelas para buffers fora da tela e as recompõe.
+Com `glx` sob o Termux:X11 a apresentação congela: bspwm, polybar e terminal
+todos sobem, e a tela fica preta. É um problema conhecido do picom
+([yshui/picom#1395](https://github.com/yshui/picom/issues/1395)), não específico
+do Android.
+
+O padrão agora é `backend = "xrender"`, que não tem esse problema **e também faz
+cantos arredondados** — não se perde nada no visual.
+
+Para confirmar que o culpado é o compositor:
+
+```bash
+lx stop
+lx start --no-picom     # se a tela aparecer, era ele
 ```
 
 **Janelas piscando ou com rastro** — mesma coisa: `xrender`, ou desligue o picom.
 Vale também testar `vsync = true`.
 
-**A barra não aparece** — veja o log: `cat /tmp/polybar.log`. Quase sempre é
-fonte faltando; confira com `fc-list | grep -i "JetBrainsMono Nerd"`.
+**A barra não aparece** — veja `lx log`, que agora inclui o passo a passo do
+`bspwmrc`. Quase sempre é fonte faltando; confira com
+`fc-list | grep -i "JetBrainsMono Nerd"`.
+
+**Atualizei o `lx` mas nada mudou** — os arquivos de configuração são escritos
+pelo `lx rice`, **não** pelo `git pull`. Depois de atualizar, rode `lx rice` de
+novo para regerá-los. O `lx start` avisa quando detecta configs antigos.
 
 **Ícones como quadradinhos** — a Nerd Font não instalou. Rode `lx rice` de novo.
 
