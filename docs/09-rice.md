@@ -13,6 +13,19 @@ lx start --de kde       # volta para o KDE quando quiser
 
 Os dois convivem — nada é desinstalado.
 
+### Não quero digitar `--de` toda vez
+
+```bash
+lx de bspwm     # define o padrão
+lx start        # agora sobe o bspwm sozinho
+lx de           # mostra qual está ativo e o que já está instalado
+```
+
+A flag continua valendo para uma vez só, sem mexer no padrão:
+`lx start --de kde`.
+
+A precedência é: `--de` > `$LX_DE` > padrão salvo > `kde`.
+
 ---
 
 ## Por que não Hyprland

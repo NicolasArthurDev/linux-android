@@ -82,6 +82,7 @@ Sem argumento nenhum ele abre um **menu interativo**. Se preferir digitar:
 | `./lx gpu` | Ativa a aceleração de GPU |
 | `./lx browser` | Instala um navegador que **realmente** roda em proot (o do apt é snap) |
 | `./lx rice` | Desktop "rice": bspwm + polybar + rofi + picom, tema Catppuccin Mocha |
+| `./lx de bspwm` | Define o ambiente padrão do `start` (kde · bspwm · xfce) |
 | `./lx doctor` | **Diagnostica o que está faltando** — rode este quando algo der errado |
 | `./lx status` | Mostra quais etapas já foram concluídas |
 | `./lx shell` | Abre um terminal dentro do Ubuntu |
