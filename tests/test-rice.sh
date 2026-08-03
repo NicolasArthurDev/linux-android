@@ -4,7 +4,7 @@ SB="$(mktemp -d)"; trap 'rm -rf "$SB"' EXIT
 lx_source ubuntu "$SB/lib.sh"
 export HOME="$SB/home"; mkdir -p "$HOME"
 ( NO_COLOR=1 PREFIX="$SB/usr" LX_STATE_DIR="$SB/st" source "$SB/lib.sh" >/dev/null 2>&1
-  write_rice_configs >/dev/null 2>&1 )
+  write_rice_configs super >/dev/null 2>&1 )
 C="$HOME/.config"
 
 echo "-- arquivos gerados"
@@ -73,4 +73,23 @@ if [ -f "$LOGB" ]; then
     chk_match "diz onde achar o xsetroot" "x11-xserver-utils" "$(cat "$LOGB")"
     rm -f "$LOGB"
 fi
+echo "-- modificador configuravel (o DeX intercepta o Super)"
+gera_mod() { # $1 = modificador
+    local H2="$SB/h-$1"; mkdir -p "$H2"
+    # 'export' de verdade: um prefixo 'VAR=x source ...' vale apenas para o
+    # source, e o write_rice_configs seguinte usaria o HOME real.
+    ( export NO_COLOR=1 HOME="$H2" PREFIX="$SB/usr" LX_STATE_DIR="$SB/st"
+      source "$SB/lib.sh" >/dev/null 2>&1
+      write_rice_configs "$1" >/dev/null 2>&1 )
+    echo "$H2"
+}
+Hs="$(gera_mod super)"; Ha="$(gera_mod alt)"; Hc="$(gera_mod ctrl-alt)"
+chk_match "super: atalhos com 'super +'" "^super \+ Return"    "$(cat "$Hs/.config/sxhkd/sxhkdrc")"
+chk_match "alt: atalhos com 'alt +'"     "^alt \+ Return"      "$(cat "$Ha/.config/sxhkd/sxhkdrc")"
+chk_match "ctrl-alt: 'ctrl + alt +'"     "^ctrl \+ alt \+ Return" "$(cat "$Hc/.config/sxhkd/sxhkdrc")"
+chk "alt nao deixa 'super' sobrando"  "0" "$(grep -c '^super +' "$Ha/.config/sxhkd/sxhkdrc")"
+chk "nenhum placeholder @MOD@ restante" "0" "$(grep -c '@MOD@\|@MODNOME@\|@PTRMOD@' "$Ha/.config/sxhkd/sxhkdrc" "$Ha/.config/bspwm/bspwmrc" | awk -F: '{t+=$2} END{print t+0}')"
+chk_match "pointer_modifier mod1 com alt"   "pointer_modifier +mod1" "$(cat "$Ha/.config/bspwm/bspwmrc")"
+chk_match "pointer_modifier mod4 com super" "pointer_modifier +mod4" "$(cat "$Hs/.config/bspwm/bspwmrc")"
+
 finish

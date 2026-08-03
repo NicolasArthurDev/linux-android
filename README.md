@@ -81,7 +81,7 @@ Sem argumento nenhum ele abre um **menu interativo**. Se preferir digitar:
 | `./lx dev` | Ambiente de desenvolvimento (zsh, NvChad, tmux, lazygit...) |
 | `./lx gpu` | Ativa a aceleração de GPU |
 | `./lx browser` | Instala um navegador que **realmente** roda em proot (o do apt é snap) |
-| `./lx rice` | Desktop "rice": bspwm + polybar + rofi + picom, tema Catppuccin Mocha |
+| `./lx rice` | Desktop "rice": bspwm + polybar + rofi + picom, tema Catppuccin Mocha. No DeX use `--mod alt` |
 | `./lx de bspwm` | Define o ambiente padrão do `start` (kde · bspwm · xfce) |
 | `./lx doctor` | **Diagnostica o que está faltando** — rode este quando algo der errado |
 | `./lx status` | Mostra quais etapas já foram concluídas |
@@ -146,7 +146,7 @@ Dois detalhes que o script resolve por você:
 ./tests/run.sh rice         # só as suites que casam com "rice"
 ```
 
-123 verificações que **não instalam nada**: carregam o `lx` com o `main()`
+129 verificações que **não instalam nada**: carregam o `lx` com o `main()`
 removido e substituem os comandos externos por mocks que registram como foram
 chamados. Cobrem detecção de contexto, layouts do proot-distro, resolução de
 GPU e locale, quoting do comando enviado ao proot, tolerância a pacote

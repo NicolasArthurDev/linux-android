@@ -80,9 +80,38 @@ Tudo em **Catppuccin Mocha**.
 
 ---
 
+## ⚠️ No Samsung DeX, use `alt`
+
+O DeX **intercepta a tecla Super no nível do sistema** — ela abre a gaveta de
+apps e nunca chega ao Termux:X11. Os atalhos do DeX (`Win+B` navegador, `Win+E`
+e-mail, `Win+L` bloquear...) são **hard-coded**: não há como desativá-los nem
+remapeá-los.
+
+Então, se você usa monitor externo via DeX:
+
+```bash
+lx rice --mod alt
+lx stop && lx start
+```
+
+A escolha fica guardada — um `lx rice` futuro mantém o `alt`.
+
+| Opção | Quando usar |
+|-------|-------------|
+| `--mod super` | padrão; só na tela do celular, fora do DeX |
+| `--mod alt` | **DeX** — recomendado |
+| `--mod ctrl-alt` | se o `alt` conflitar com algum programa |
+
+> Por que o `alt` funciona: o DeX só reserva o Super e o `Alt+Tab`. Como o
+> `sxhkd` captura as teclas no servidor X, ele tem precedência sobre os
+> programas de dentro da sessão — um `alt + d` vai para o bspwm, não para a
+> barra de endereços do navegador.
+
+---
+
 ## Atalhos
 
-`super` = tecla Windows/Command do teclado.
+Substitua `super` pelo modificador que você escolheu.
 
 | Atalho | Ação |
 |--------|------|

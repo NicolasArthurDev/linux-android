@@ -806,8 +806,21 @@ install_nerd_font_inside() {
     rm -rf "$tmp"
 }
 
+# $1 = modificador: super | alt | ctrl-alt
+#
+# O Samsung DeX intercepta a tecla Super no nivel do sistema (Win+B, Win+E,
+# Win+L...) e esses atalhos sao hard-coded — nao ha como desativa-los. Num
+# monitor via DeX, portanto, 'super' simplesmente nao chega ao X. Por isso o
+# modificador e configuravel.
 write_rice_configs() {
     local H="${HOME:-/root}"
+    local mod="${1:-super}" modseq modnome ptrmod
+    case "$mod" in
+        super)    modseq="super";        modnome="super (tecla Windows)"; ptrmod="mod4" ;;
+        alt)      modseq="alt";          modnome="alt";                   ptrmod="mod1" ;;
+        ctrl-alt) modseq="ctrl + alt";   modnome="ctrl + alt";            ptrmod="mod1" ;;
+        *) die "modificador inválido: '$mod' (use: super | alt | ctrl-alt)" ;;
+    esac
     step "Escrevendo configurações em ${H}/.config"
     info "arquivos existentes são sobrescritos (é assim que as correções chegam)"
     mkdir -p "$H/.config"/{bspwm,sxhkd,polybar,picom,rofi,kitty,dunst}
@@ -876,7 +889,7 @@ bspc config split_ratio           0.52
 bspc config borderless_monocle    true
 bspc config gapless_monocle       true
 bspc config focus_follows_pointer true
-bspc config pointer_modifier      mod4
+bspc config pointer_modifier      @PTRMOD@
 
 # Catppuccin Mocha
 bspc config normal_border_color   "#313244"
@@ -909,48 +922,48 @@ BSPWM
 
     # ---------------- sxhkd ----------------
     cat > "$H/.config/sxhkd/sxhkdrc" <<'SXHKD'
-# Gerado por 'lx rice'.  super = tecla Windows/Command do teclado.
+# Gerado por 'lx rice'.  Modificador: @MODNOME@
 
 # --- essenciais ---
-super + Return
+@MOD@ + Return
     kitty
-super + d
+@MOD@ + d
     rofi -show drun
-super + shift + q
+@MOD@ + shift + q
     bspc node -c
-super + shift + r
+@MOD@ + shift + r
     bspc wm -r
-super + shift + e
+@MOD@ + shift + e
     bspc quit
 
 # --- foco / movimento ---
-super + {h,j,k,l}
+@MOD@ + {h,j,k,l}
     bspc node -f {west,south,north,east}
-super + shift + {h,j,k,l}
+@MOD@ + shift + {h,j,k,l}
     bspc node -s {west,south,north,east}
 
 # --- layout ---
-super + f
+@MOD@ + f
     bspc node -t "~"fullscreen
-super + space
+@MOD@ + space
     bspc node -t "~"floating
-super + m
+@MOD@ + m
     bspc desktop -l next
 
 # --- redimensionar ---
-super + control + {h,j,k,l}
+@MOD@ + control + {h,j,k,l}
     bspc node -z {left -40 0,bottom 0 40,top 0 -40,right 40 0}
 
 # --- areas de trabalho ---
-super + {1-5}
+@MOD@ + {1-5}
     bspc desktop -f '^{1-5}'
-super + shift + {1-5}
+@MOD@ + shift + {1-5}
     bspc node -d '^{1-5}' --follow
 
 # --- extras ---
-super + shift + s
+@MOD@ + shift + s
     rofi -show run
-super + b
+@MOD@ + b
     firefox
 SXHKD
 
@@ -1195,12 +1208,26 @@ KITTY
     frame_color = "#f38ba8"
 DUNST
 
-    ok "configurações escritas"
+    # Aplica o modificador escolhido nos arquivos gerados.
+    sed -i -e "s/@MOD@/${modseq}/g" -e "s/@MODNOME@/${modnome}/g" "$H/.config/sxhkd/sxhkdrc"
+    sed -i -e "s/@PTRMOD@/${ptrmod}/g" "$H/.config/bspwm/bspwmrc"
+
+    ok "configurações escritas (modificador: ${modnome})"
 }
 
 install_rice_inside() {
     [ "$CTX" = "ubuntu" ] || die "install_rice_inside só roda dentro do Ubuntu."
     export DEBIAN_FRONTEND=noninteractive
+    local mod="${1:-}"
+
+    # Lembra a escolha, para um 'lx rice' futuro nao voltar ao padrao.
+    state_init
+    if [ -n "$mod" ]; then
+        printf '%s\n' "$mod" > "${STATE_DIR}/rice-mod" 2>/dev/null || true
+    else
+        mod="$(cat "${STATE_DIR}/rice-mod" 2>/dev/null)"
+        [ -n "$mod" ] || mod="super"
+    fi
 
     header "Rice: bspwm + Catppuccin Mocha"
 
@@ -1217,7 +1244,7 @@ install_rice_inside() {
         libnotify-bin papirus-icon-theme fontconfig
 
     install_nerd_font_inside
-    write_rice_configs
+    write_rice_configs "$mod"
 
     # Confere os binarios de verdade, em vez de confiar no apt.
     local faltando="" b
@@ -1239,32 +1266,45 @@ install_rice_inside() {
         return 1
     fi
 
-    cat <<'MSG'
+    # Nome do modificador para as instrucoes (o heredoc abaixo expande).
+    local M
+    case "$mod" in
+        alt)      M="alt" ;;
+        ctrl-alt) M="ctrl+alt" ;;
+        *)        M="super" ;;
+    esac
+
+    cat <<MSG
 
 ============================================================
- Rice instalado.
+ Rice instalado.  Modificador: ${M}
 
  Para iniciar, no TERMUX:
 
      lx stop
      lx start --de bspwm
 
- Atalhos (super = tecla Windows do teclado):
+ Atalhos:
 
-     super + Enter        terminal (kitty)
-     super + d            launcher (rofi)
-     super + b            navegador
-     super + 1..5         trocar de área de trabalho
-     super + h/j/k/l      mover o foco
-     super + shift + hjkl mover a janela
-     super + f            tela cheia
-     super + space        flutuante
-     super + shift + q    fechar janela
-     super + shift + r    recarregar o bspwm
-     super + shift + e    sair da sessão
+     ${M} + Enter        terminal (kitty)
+     ${M} + d            launcher (rofi)
+     ${M} + b            navegador
+     ${M} + 1..5         trocar de área de trabalho
+     ${M} + h/j/k/l      mover o foco
+     ${M} + shift + hjkl mover a janela
+     ${M} + f            tela cheia
+     ${M} + space        flutuante
+     ${M} + shift + q    fechar janela
+     ${M} + shift + r    recarregar o bspwm
+     ${M} + shift + e    sair da sessão
 
- Sem teclado físico o bspwm é pouco usável — ele é feito
- para ser dirigido pelo teclado. Ideal com o monitor externo.
+ No Samsung DeX a tecla Super NAO funciona: o DeX a intercepta no
+ nível do sistema (Win+B, Win+E, Win+L...) e esses atalhos são
+ hard-coded. Se estiver no DeX, use:
+
+     lx rice --mod alt
+
+ Sem teclado físico, use os botões da barra: ☰ (launcher) e ❯ (terminal).
 
  Para voltar ao KDE:  lx start --de kde
 ============================================================
@@ -1272,12 +1312,27 @@ MSG
 }
 
 cmd_rice() {
+    local mod=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --mod)
+                [ $# -ge 2 ] || die "--mod exige um valor: super | alt | ctrl-alt"
+                mod="$2"; shift 2 ;;
+            super|alt|ctrl-alt) mod="$1"; shift ;;
+            *) die "argumento inválido em 'rice': $1 (use: --mod super|alt|ctrl-alt)" ;;
+        esac
+    done
+    case "${mod:-}" in
+        ''|super|alt|ctrl-alt) ;;
+        *) die "modificador inválido: '$mod' (use: super | alt | ctrl-alt)" ;;
+    esac
+
     if [ "$CTX" = "ubuntu" ]; then
-        install_rice_inside
+        install_rice_inside "$mod"
     else
         require_termux "rice"
         require_ubuntu_installed
-        run_in_ubuntu rice-install
+        run_in_ubuntu rice-install "$mod"
     fi
 }
 
@@ -2415,10 +2470,14 @@ ${C_BOLD}COMANDOS${C_RESET}
                         Ex.: 'lx de bspwm' faz o 'lx start' subir o bspwm
                         sem precisar da flag toda vez.
 
-    ${C_BOLD}rice${C_RESET}                Instala um desktop "rice": bspwm + sxhkd, polybar,
+    ${C_BOLD}rice${C_RESET} [--mod X]      Instala um desktop "rice": bspwm + sxhkd, polybar,
                         rofi, picom (cantos arredondados e transparência),
                         kitty, dunst e a fonte JetBrainsMono Nerd, tudo com
                         a paleta Catppuccin Mocha.
+                        --mod super | alt | ctrl-alt  (padrão: super)
+                        No Samsung DeX use 'alt': o DeX intercepta a
+                        tecla Super no sistema e não há como desativar.
+
                         Depois:  lx start --de bspwm
 
     ${C_BOLD}browser${C_RESET} [qual]      Instala um navegador que REALMENTE roda em proot.
@@ -2484,7 +2543,7 @@ main() {
         dev)              cmd_dev "$@" ;;
         gpu)              cmd_gpu ;;
         browser|navegador) cmd_browser "$@" ;;
-        rice)             cmd_rice ;;
+        rice)             cmd_rice "$@" ;;
         doctor|diag)      cmd_doctor ;;
         status)           cmd_status ;;
         shell|ubuntu)     cmd_shell ;;
@@ -2507,7 +2566,7 @@ main() {
         setup-kde)        install_kde_inside ;;
         setup-gpu)        install_gpu_inside ;;
         browser-install)  install_browser_inside "$@" ;;
-        rice-install)     install_rice_inside ;;
+        rice-install)     install_rice_inside "$@" ;;
 
         *) err "comando desconhecido: '$cmd'"; echo; cmd_help; exit 1 ;;
     esac
