@@ -534,6 +534,12 @@ EOF
         return 1
     fi
 
+    # O apt guarda todos os .deb baixados em /var/cache/apt/archives. Depois
+    # de instalar o Plasma inteiro isso passa de 1 GB parado — relevante num
+    # celular, onde o rootfs divide espaco com fotos e videos.
+    step "Limpando o cache de pacotes..."
+    apt clean
+
     state_set kde
     ok "KDE Plasma instalado (sessão X11 confirmada)."
 }
@@ -1386,6 +1392,35 @@ cmd_uninstall() {
     info "o repositório continua onde está — só o atalho global foi removido"
 }
 
+# Espaco em disco: o que da para recuperar sem desinstalar nada.
+cmd_clean() {
+    header "Liberando espaço"
+
+    if [ "$CTX" = "termux" ]; then
+        require_ubuntu_installed
+        step "Cache de pacotes do Termux..."
+        apt clean 2>/dev/null || pkg clean 2>/dev/null || true
+
+        step "Cache de pacotes do Ubuntu..."
+        proot-distro login "$DISTRO" -- /bin/bash -c \
+            'du -sh /var/cache/apt/archives 2>/dev/null; apt clean' 2>/dev/null || true
+
+        step "Cache de imagens do proot-distro..."
+        # Camadas OCI baixadas na instalacao; nao sao necessarias depois.
+        rm -rf "${PREFIX}/var/lib/proot-distro/cache"/* 2>/dev/null || true
+
+        echo
+        step "Espaço agora:"
+        df -h "$PREFIX" 2>/dev/null | tail -1 | sed 's/^/     /'
+    else
+        step "Cache de pacotes..."
+        apt clean
+        df -h / | tail -1 | sed 's/^/     /'
+    fi
+
+    ok "Pronto."
+}
+
 cmd_update() {
     header "Atualizando"
 
@@ -1572,6 +1607,7 @@ ${C_BOLD}COMANDOS${C_RESET}
     ${C_BOLD}status${C_RESET}              Mostra quais etapas já foram concluídas.
     ${C_BOLD}shell${C_RESET}               Abre um terminal dentro do Ubuntu.
     ${C_BOLD}update${C_RESET}              Atualiza o repositório e os pacotes dos dois ambientes.
+    ${C_BOLD}clean${C_RESET}               Libera espaço: caches de pacotes e camadas OCI baixadas.
 
     ${C_BOLD}install${C_RESET}             Deixa o 'lx' disponível de qualquer pasta.
                         Cria um symlink em \$PREFIX/bin (não é um alias: também
@@ -1619,6 +1655,7 @@ main() {
         status)           cmd_status ;;
         shell|ubuntu)     cmd_shell ;;
         update)           cmd_update ;;
+        clean|limpar)     cmd_clean ;;
         install)          cmd_install ;;
         uninstall)        cmd_uninstall ;;
         help|-h|--help)   cmd_help ;;
