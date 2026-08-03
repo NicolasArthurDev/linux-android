@@ -176,11 +176,23 @@ troque `proot-distro login "$DISTRO" --shared-tmp` por
 > Nota: o `lx` não tem opção pronta para isso ainda. Rodar como root funciona e
 > é o padrão do projeto — só gera avisos.
 
-## Firefox não instala (erro de snap)
+## Firefox não instala / instala mas não abre
 
-- O Firefox no Ubuntu vem como **snap**, que **não funciona em proot**.
-- Use o **Chromium** via apt ou instale o Firefox ESR de um `.deb`/PPA.
-  Veja [dicas de desempenho](05-dicas-desempenho.md).
+No Ubuntu, `firefox`, `chromium` e `chromium-browser` são todos **pacotes de
+transição para snap** — e snap não roda em proot. A instalação termina sem erro
+e o navegador simplesmente não abre.
+
+Use:
+
+```bash
+lx browser            # Firefox do repositório .deb oficial da Mozilla
+lx browser falkon     # Falkon (Qt/KDE), bem mais leve
+```
+
+> `firefox-esr` **não existe** no Ubuntu — é pacote do Debian. Se algum guia
+> mandar instalar, vai falhar.
+
+Detalhes em [dicas de desempenho](05-dicas-desempenho.md).
 
 ## Quero começar do zero
 
