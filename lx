@@ -2054,6 +2054,68 @@ cmd_log() {
     info "log completo:  cat $f"
 }
 
+# Diagnostico completo em texto puro, para copiar e colar.
+#
+# Existe para evitar idas e vindas de captura de tela: uma execucao mostra
+# versoes, estado, caminhos, o que esta rodando e o resumo do log — com data
+# e hora, para nao haver duvida se a informacao e da sessao atual.
+cmd_report() {
+    require_termux "report"
+    local f="${TMPDIR:-$PREFIX/tmp}/lx-session.log"
+
+    # Sem cor: a saida e para colar em texto.
+    C_RESET=""; C_BOLD=""; C_DIM=""; C_RED=""; C_GRN=""; C_YEL=""; C_BLU=""; C_CYN=""
+
+    echo "===== lx report ====="
+    echo "data:      $(date '+%Y-%m-%d %H:%M:%S %Z')"
+    echo "lx:        v${LX_VERSION}  ($(self_path))"
+    echo "commit:    $(git -C "$(repo_dir)" rev-parse --short HEAD 2>/dev/null || echo '?')"
+    echo "contexto:  ${CTX}"
+    echo "android:   $(getprop ro.build.version.release 2>/dev/null || echo '?')  \
+modelo $(getprop ro.product.model 2>/dev/null || echo '?')"
+    resolve_rootfs
+    echo "rootfs:    ${ROOTFS}"
+    echo "padrão de: $(read_default_de)"
+    echo
+
+    echo "--- distro no container ---"
+    if [ -r "${ROOTFS}/etc/os-release" ]; then
+        grep -E '^(PRETTY_NAME|VERSION_CODENAME)=' "${ROOTFS}/etc/os-release" || true
+    else
+        echo "(sem /etc/os-release)"
+    fi
+    echo
+
+    echo "--- binários de sessão ---"
+    local b
+    for b in startplasma-x11 startplasma-wayland bspwm sxhkd polybar rofi picom kitty; do
+        printf '%-22s %s\n' "$b" "$([ -x "${ROOTFS}/usr/bin/$b" ] && echo presente || echo AUSENTE)"
+    done
+    echo
+
+    echo "--- processos agora ---"
+    for b in termux-x11 startplasma-x11 bspwm polybar picom pulseaudio proot; do
+        printf '%-18s %s\n' "$b" "$(pgrep -c -f "[${b:0:1}]${b:1}" 2>/dev/null || echo 0)"
+    done
+    echo
+
+    echo "--- espaço ---"
+    df -h "$PREFIX" 2>/dev/null | tail -1
+    echo
+
+    echo "--- log da sessão ---"
+    if [ -f "$f" ]; then
+        echo "arquivo: $f ($(wc -l < "$f") linhas, modificado $(date -r "$f" '+%H:%M:%S' 2>/dev/null || echo '?'))"
+        echo "* linhas mais repetidas:"
+        sort "$f" | uniq -c | sort -rn | head -5 | sed 's/^/    /'
+        echo "* últimas 20 linhas:"
+        tail -20 "$f" | sed 's/^/    /'
+    else
+        echo "(sem log — rode 'lx start' primeiro)"
+    fi
+    echo "===== fim ====="
+}
+
 cmd_clean() {
     header "Liberando espaço"
 
@@ -2282,6 +2344,9 @@ ${C_BOLD}COMANDOS${C_RESET}
     ${C_BOLD}status${C_RESET}              Mostra quais etapas já foram concluídas.
     ${C_BOLD}shell${C_RESET}               Abre um terminal dentro do Ubuntu.
     ${C_BOLD}update${C_RESET}              Atualiza o repositório e os pacotes dos dois ambientes.
+    ${C_BOLD}report${C_RESET}              Diagnóstico completo em texto puro, com data e hora.
+                        Feito para copiar e colar ao pedir ajuda.
+
     ${C_BOLD}log${C_RESET}                 Mostra o log da última sessão, colapsando as
                         linhas repetidas.
 
@@ -2336,6 +2401,7 @@ main() {
         update)           cmd_update ;;
         clean|limpar)     cmd_clean ;;
         log|logs)         cmd_log ;;
+        report|relatorio) cmd_report ;;
         de|ambiente)      cmd_de "$@" ;;
         install)          cmd_install ;;
         uninstall)        cmd_uninstall ;;
