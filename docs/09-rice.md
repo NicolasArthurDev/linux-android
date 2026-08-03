@@ -136,6 +136,38 @@ E troque a linha do `xsetroot` no `bspwmrc` por esse comando, para valer sempre.
 
 ---
 
+## "Iniciou mas a tela está vazia"
+
+**Provavelmente está funcionando.** Um tiling WM sem janelas abertas mostra só
+uma cor sólida — não existe papel de parede, ícone de área de trabalho nem menu
+iniciar. Visualmente é idêntico a uma falha.
+
+Como confirmar, no Termux:
+
+```bash
+pgrep -a bspwm     # se aparecer, está rodando
+```
+
+Por isso o `bspwmrc` agora **abre um terminal automaticamente** na primeira
+janela: assim fica óbvio que a sessão subiu.
+
+### Sem teclado físico
+
+Este é o ponto mais importante do bspwm no celular: **não existe a tecla `super`
+no teclado virtual do Android**, então nenhum atalho funciona.
+
+A barra tem dois botões clicáveis para isso:
+
+| Botão | Ação |
+|-------|------|
+| `☰` | abre o launcher (rofi) |
+| `❯` | abre um terminal |
+
+Fora deles, sem teclado você não consegue abrir nada. Para uso na tela do
+celular, o KDE continua sendo o prático.
+
+---
+
 ## Se algo der errado
 
 **Tela preta ao entrar** — provavelmente o picom. Comente a linha dele no

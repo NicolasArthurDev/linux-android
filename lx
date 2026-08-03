@@ -846,6 +846,16 @@ bspc config presel_feedback_color "#89b4fa"
 bspc rule -a Kitty          state=tiled
 bspc rule -a firefox        desktop='^1'
 bspc rule -a Pavucontrol    state=floating
+
+# Abre um terminal na primeira janela.
+#
+# POR QUE: um tiling WM sem janelas mostra so uma cor solida — sem icones,
+# sem papel de parede, sem menu. E visualmente identico a uma falha. Pior
+# ainda no celular, onde nao existe a tecla 'super' para abrir nada.
+# Com um terminal aberto fica obvio que a sessao subiu.
+if [ -z "$(bspc query -N -d)" ] && command -v kitty >/dev/null 2>&1; then
+    kitty &
+fi
 BSPWM
     chmod +x "$H/.config/bspwm/bspwmrc"
 
@@ -957,11 +967,27 @@ offset-x      = 8
 offset-y      = 6
 font-0        = JetBrainsMono Nerd Font:size=10;2
 font-1        = JetBrainsMono Nerd Font:size=13;3
-modules-left   = bspwm
+modules-left   = launcher term bspwm
 modules-center = title
 modules-right  = cpu memory date
 cursor-click   = pointer
 enable-ipc     = true
+
+; Botoes clicaveis — a unica forma de abrir programas SEM teclado fisico.
+; No celular nao existe a tecla 'super', entao os atalhos do sxhkd nao servem.
+; Usamos 'label' (e nao 'content'): na polybar 3.7 o 'content' esta deprecado.
+[module/launcher]
+type = custom/text
+label = " ☰ "
+label-foreground = ${colors.mauve}
+label-background = ${colors.surface}
+click-left = rofi -show drun
+
+[module/term]
+type = custom/text
+label = " ❯ "
+label-foreground = ${colors.green}
+click-left = kitty
 
 [module/bspwm]
 type = internal/bspwm
@@ -1086,9 +1112,11 @@ KITTY
     monitor = 0
     follow = none
     width = 320
-    height = 120
+    # dunst 1.12+ pede tupla: (minimo, maximo). (0, X) = altura dinamica.
+    height = (0, 120)
     origin = top-right
-    offset = 14x44
+    # e offset em (N, N), nao mais NxN.
+    offset = (14, 44)
     corner_radius = 10
     frame_width = 2
     frame_color = "#cba6f7"
@@ -1619,7 +1647,7 @@ cmd_start() {
     require_termux "start"
     require_ubuntu_installed
 
-    local gpu_mode="auto" x11_extra="${X11_EXTRA:-}" use_alt=0 de="${LX_DE:-$(read_default_de)}"
+    local gpu_mode="auto" x11_extra="${X11_EXTRA:-}" use_alt=0 de="${LX_DE:-$(read_default_de)}" verbose=0
 
     while [ $# -gt 0 ]; do
         case "$1" in
@@ -1636,6 +1664,7 @@ cmd_start() {
                 [ $# -ge 2 ] || die "--de exige um valor: kde | bspwm | xfce"
                 de="$2"; shift 2 ;;
             --alt)   use_alt=1; shift ;;
+            -v|--verbose) verbose=1; shift ;;
             *) die "opção desconhecida em 'start': $1" ;;
         esac
     done
@@ -1691,6 +1720,7 @@ cmd_start() {
     # TMPDIR sempre existe no Termux, mas o script roda com 'set -u': se algum
     # ambiente estranho não o definir, a falha seria um erro cru de bash.
     export XDG_RUNTIME_DIR="${TMPDIR:-$PREFIX/tmp}"
+    LX_LOG="${TMPDIR:-$PREFIX/tmp}/lx-session.log"
 
     # Fuso horário: o proot não herda o do Android, então o relógio do KDE
     # aparece em UTC (3h à frente no Brasil). Lemos a zona do Android e a
@@ -1733,6 +1763,13 @@ cmd_start() {
         export XDG_RUNTIME_DIR=/tmp/runtime-root
         mkdir -p \"\$XDG_RUNTIME_DIR\"; chmod 700 \"\$XDG_RUNTIME_DIR\"
         export QT_QPA_PLATFORM=xcb
+
+        # O kpipewire (controles de midia e captura de tela do Plasma) tenta
+        # conectar ao PipeWire, que nao existe em proot. Ele re-tenta para
+        # sempre e inunda o terminal com milhares de linhas identicas.
+        # Nada aqui usa PipeWire — o audio vai pelo PulseAudio.
+        export QT_LOGGING_RULES='kpipewire*=false'
+
         case '${gpu_mode}' in
             turnip)
                 export MESA_LOADER_DRIVER_OVERRIDE=kgsl
@@ -1759,8 +1796,15 @@ cmd_start() {
         sleep 2
         step "Iniciando X11 + KDE juntos (-xstartup)..."
         # shellcheck disable=SC2086
-        termux-x11 "$DISPLAY_NUM" $x11_extra \
-            -xstartup "proot-distro login ${DISTRO} --shared-tmp -- /bin/bash -c $(printf '%q' "$inner")"
+        if [ "$verbose" -eq 1 ]; then
+            termux-x11 "$DISPLAY_NUM" $x11_extra \
+                -xstartup "proot-distro login ${DISTRO} --shared-tmp -- /bin/bash -c $(printf '%q' "$inner")"
+        else
+            info "log da sessão: ${LX_LOG}"
+            termux-x11 "$DISPLAY_NUM" $x11_extra \
+                -xstartup "proot-distro login ${DISTRO} --shared-tmp -- /bin/bash -c $(printf '%q' "$inner")" \
+                >"$LX_LOG" 2>&1
+        fi
     else
         step "Iniciando o servidor Termux-X11..."
         # shellcheck disable=SC2086
@@ -1770,8 +1814,18 @@ cmd_start() {
         am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >/dev/null 2>&1 \
             || info "abra o app Termux:X11 manualmente"
         sleep 2
-        step "Iniciando o KDE Plasma..."
-        proot-distro login "$DISTRO" --shared-tmp -- /bin/bash -c "$inner"
+        step "Iniciando o ${de}..."
+        # A sessao grafica fala MUITO no stderr: avisos do Mesa, do dunst e
+        # componentes do KDE que procuram servicos inexistentes em proot (o
+        # kpipewire chega a milhares de linhas). Sem redirecionar, o terminal
+        # fica inutilizavel e o usuario perde o proprio prompt.
+        if [ "$verbose" -eq 1 ]; then
+            proot-distro login "$DISTRO" --shared-tmp -- /bin/bash -c "$inner"
+        else
+            info "log da sessão: ${LX_LOG}"
+            proot-distro login "$DISTRO" --shared-tmp -- /bin/bash -c "$inner" \
+                >"$LX_LOG" 2>&1
+        fi
     fi
 
     echo
@@ -1955,6 +2009,19 @@ cmd_de() {
     fi
 }
 
+# Mostra o log da ultima sessao grafica.
+cmd_log() {
+    require_termux "log"
+    local f="${TMPDIR:-$PREFIX/tmp}/lx-session.log"
+    [ -f "$f" ] || die "sem log ainda — rode 'lx start' primeiro."
+    header "Log da última sessão"
+    info "$f  ($(wc -l < "$f") linhas)"
+    echo
+    # Colapsa linhas repetidas: o kpipewire e companhia geram milhares
+    # identicas, e sem isto o que importa fica soterrado.
+    uniq -c "$f" | tail -60 | sed 's/^ *\([0-9]*\) /[\1x] /'
+}
+
 cmd_clean() {
     header "Liberando espaço"
 
@@ -2134,6 +2201,8 @@ ${C_BOLD}COMANDOS${C_RESET}
         --de AMBIENTE     kde (padrão) | bspwm | xfce
         --gpu MODO        auto (padrão) | turnip | virgl | software
         --alt             método alternativo (-xstartup), se o normal falhar
+        -v, --verbose     mostra a saída da sessão no terminal em vez de
+                          mandar para o log (útil para diagnosticar)
         --extra "FLAGS"   flags do termux-x11:
                             -legacy-drawing   tela preta
                             -force-bgra       cores trocadas
@@ -2181,6 +2250,9 @@ ${C_BOLD}COMANDOS${C_RESET}
     ${C_BOLD}status${C_RESET}              Mostra quais etapas já foram concluídas.
     ${C_BOLD}shell${C_RESET}               Abre um terminal dentro do Ubuntu.
     ${C_BOLD}update${C_RESET}              Atualiza o repositório e os pacotes dos dois ambientes.
+    ${C_BOLD}log${C_RESET}                 Mostra o log da última sessão, colapsando as
+                        linhas repetidas.
+
     ${C_BOLD}clean${C_RESET}               Libera espaço: caches de pacotes e camadas OCI baixadas.
 
     ${C_BOLD}install${C_RESET}             Deixa o 'lx' disponível de qualquer pasta.
@@ -2231,6 +2303,7 @@ main() {
         shell|ubuntu)     cmd_shell ;;
         update)           cmd_update ;;
         clean|limpar)     cmd_clean ;;
+        log|logs)         cmd_log ;;
         de|ambiente)      cmd_de "$@" ;;
         install)          cmd_install ;;
         uninstall)        cmd_uninstall ;;

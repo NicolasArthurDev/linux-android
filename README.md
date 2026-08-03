@@ -88,6 +88,7 @@ Sem argumento nenhum ele abre um **menu interativo**. Se preferir digitar:
 | `./lx shell` | Abre um terminal dentro do Ubuntu |
 | `./lx update` | Atualiza o repositório **e** os pacotes dos dois ambientes |
 | `./lx install` | Habilita o comando `lx` global · `uninstall` remove |
+| `./lx log` | Log da última sessão, com as linhas repetidas colapsadas |
 | `./lx version` | Versão e qual arquivo está sendo executado |
 | `./lx help` | Ajuda completa |
 
@@ -135,6 +136,21 @@ Dois detalhes que o script resolve por você:
 | [aceleração de GPU](docs/07-aceleracao-gpu.md) | Turnip/Adreno, o maior ganho do projeto |
 | [dentro do desktop](docs/08-dentro-do-desktop.md) | subiu o KDE, e agora? terminal, rede, deixar bonito |
 | [rice](docs/09-rice.md) | bspwm + Catppuccin Mocha, tiling e atalhos de teclado |
+
+---
+
+## Testes
+
+```bash
+./tests/run.sh              # toda a suite
+./tests/run.sh rice         # só as suites que casam com "rice"
+```
+
+104 verificações que **não instalam nada**: carregam o `lx` com o `main()`
+removido e substituem os comandos externos por mocks que registram como foram
+chamados. Cobrem detecção de contexto, layouts do proot-distro, resolução de
+GPU e locale, quoting do comando enviado ao proot, tolerância a pacote
+inexistente e os arquivos de configuração gerados pelo `rice`.
 
 ---
 

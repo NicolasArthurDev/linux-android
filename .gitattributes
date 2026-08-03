@@ -10,6 +10,7 @@
 # Sem esta linha ele vira CRLF em checkouts no Windows/WSL e falha no
 # Android com "bad interpreter: /usr/bin/env bash^M".
 lx      text eol=lf
+tests/* text eol=lf
 
 # Docs e config também padronizados em LF.
 *.md    text eol=lf
