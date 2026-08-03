@@ -240,3 +240,7 @@ apt install -y <pacote>
 ```
 
 **Quero voltar ao KDE** — `lx start --de kde`. Nada foi removido.
+
+---
+
+*[linux-android](https://github.com/NicolasArthurDev/linux-android) — por Nicolas Arthur.*

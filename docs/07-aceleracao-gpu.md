@@ -225,3 +225,7 @@ com GPU, o Adreno 740 tem folga de sobra para uma interface de desktop.
 
 Se ainda assim ficar pesado, aí sim veja as
 [dicas de desempenho](05-dicas-desempenho.md).
+
+---
+
+*[linux-android](https://github.com/NicolasArthurDev/linux-android) — por Nicolas Arthur.*

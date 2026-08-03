@@ -146,7 +146,7 @@ Dois detalhes que o script resolve por você:
 ./tests/run.sh rice         # só as suites que casam com "rice"
 ```
 
-129 verificações que **não instalam nada**: carregam o `lx` com o `main()`
+157 verificações que **não instalam nada**: carregam o `lx` com o `main()`
 removido e substituem os comandos externos por mocks que registram como foram
 chamados. Cobrem detecção de contexto, layouts do proot-distro, resolução de
 GPU e locale, quoting do comando enviado ao proot, tolerância a pacote
@@ -162,4 +162,13 @@ mas o KDE Plasma em proot pode ter pequenos bugs (efeitos visuais, bloqueio de t
 A configuração já desativa o que costuma dar problema. Se quiser algo mais leve e
 estável, o XFCE é uma ótima alternativa (veja as dicas de desempenho).
 
-Licença: [MIT](LICENSE).
+---
+
+## Autor
+
+**Nicolas Arthur** — [@NicolasArthurDev](https://github.com/NicolasArthurDev)
+
+Projeto criado e validado num **Galaxy S23**. Se este guia te poupou tempo,
+deixe uma ⭐ no repositório.
+
+Licença: [MIT](LICENSE) © 2026 Nicolas Arthur.

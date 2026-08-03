@@ -288,3 +288,7 @@ abas chega perto do limite. Se apertar, o XFCE é bem mais leve
 
 Voltar para o [uso diário](03-uso-diario.md) ou a
 [solução de problemas](04-solucao-de-problemas.md).
+
+---
+
+*[linux-android](https://github.com/NicolasArthurDev/linux-android) — por Nicolas Arthur.*
