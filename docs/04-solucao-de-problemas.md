@@ -98,6 +98,29 @@ cada aba nova.
 
 Também corrigido pelo `git pull` acima — o `lx start` passou a exportar `SHELL`.
 
+## Terminal inundado de "Failed to connect to PipeWire"
+
+O componente de mídia do Plasma (`kpipewire`) procura o PipeWire, que não existe
+em proot, e **re-tenta para sempre** — milhares de linhas idênticas.
+
+Resolvido: a saída da sessão vai para um log, e esse ruído é filtrado antes de
+chegar lá. Basta atualizar:
+
+```bash
+cd ~/linux-android && git pull
+lx stop && lx start
+```
+
+Nada é perdido — o áudio usa PulseAudio, não PipeWire. O que deixa de funcionar
+é só o widget de controle de mídia do Plasma, que já não funcionava.
+
+Para ver o log da sessão:
+
+```bash
+lx log                  # resumo: linhas mais repetidas + o que é singular
+lx start --verbose      # ou acompanhe no terminal, sem log
+```
+
 ## Sem áudio
 
 - O PulseAudio precisa estar rodando no Termux (o `lx start` inicia).

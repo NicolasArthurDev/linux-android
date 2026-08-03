@@ -1722,6 +1722,15 @@ cmd_start() {
     export XDG_RUNTIME_DIR="${TMPDIR:-$PREFIX/tmp}"
     LX_LOG="${TMPDIR:-$PREFIX/tmp}/lx-session.log"
 
+    # Ruido estrutural: componentes que procuram servicos que NUNCA vao existir
+    # em proot. Nao sao avisos uteis — sao a mesma frase repetida aos milhares.
+    #
+    # O QT_LOGGING_RULES pega so as linhas com prefixo de categoria Qt; a
+    # segunda linha de cada par do kpipewire e escrita direto no stderr, sem
+    # categoria, e escapa das regras. Por isso filtramos aqui tambem.
+    readonly LX_NOISE='kpipewire|Failed to connect to PipeWire|Media monitor will not work|MESA-LOADER: failed to retrieve device information|os_same_file_description'
+
+
     # Fuso horário: o proot não herda o do Android, então o relógio do KDE
     # aparece em UTC (3h à frente no Brasil). Lemos a zona do Android e a
     # repassamos — assim não precisamos alterar nada dentro do container.
@@ -1802,8 +1811,8 @@ cmd_start() {
         else
             info "log da sessão: ${LX_LOG}"
             termux-x11 "$DISPLAY_NUM" $x11_extra \
-                -xstartup "proot-distro login ${DISTRO} --shared-tmp -- /bin/bash -c $(printf '%q' "$inner")" \
-                >"$LX_LOG" 2>&1
+                -xstartup "proot-distro login ${DISTRO} --shared-tmp -- /bin/bash -c $(printf '%q' "$inner")" 2>&1 \
+                | grep --line-buffered -vE "$LX_NOISE" > "$LX_LOG"
         fi
     else
         step "Iniciando o servidor Termux-X11..."
@@ -1823,8 +1832,8 @@ cmd_start() {
             proot-distro login "$DISTRO" --shared-tmp -- /bin/bash -c "$inner"
         else
             info "log da sessão: ${LX_LOG}"
-            proot-distro login "$DISTRO" --shared-tmp -- /bin/bash -c "$inner" \
-                >"$LX_LOG" 2>&1
+            proot-distro login "$DISTRO" --shared-tmp -- /bin/bash -c "$inner" 2>&1 \
+                | grep --line-buffered -vE "$LX_NOISE" > "$LX_LOG"
         fi
     fi
 
@@ -2016,10 +2025,33 @@ cmd_log() {
     [ -f "$f" ] || die "sem log ainda — rode 'lx start' primeiro."
     header "Log da última sessão"
     info "$f  ($(wc -l < "$f") linhas)"
+
+    # Contamos por FREQUENCIA no arquivo inteiro, nao com 'uniq' simples.
+    #
+    # POR QUE: 'uniq' so colapsa linhas ADJACENTES iguais. Quando o ruido vem
+    # em pares que se alternam (A B A B A B...), como o do kpipewire, nenhuma
+    # linha e igual a sua vizinha e o uniq nao colapsa nada — foi o que
+    # aconteceu na primeira versao deste comando.
     echo
-    # Colapsa linhas repetidas: o kpipewire e companhia geram milhares
-    # identicas, e sem isto o que importa fica soterrado.
-    uniq -c "$f" | tail -60 | sed 's/^ *\([0-9]*\) /[\1x] /'
+    say "${C_BOLD}Linhas mais repetidas${C_RESET}"
+    sort "$f" | uniq -c | sort -rn | head -8 | while read -r n resto; do
+        if [ "${n:-0}" -gt 1 ] 2>/dev/null; then
+            printf '  %s%5sx%s %s\n' "$C_YEL" "$n" "$C_RESET" "$(printf '%.100s' "$resto")"
+        fi
+    done
+
+    echo
+    say "${C_BOLD}Últimas linhas não-repetitivas${C_RESET}"
+    # Remove o que aparece mais de 3 vezes: sobra o que e de fato singular.
+    local repetidas
+    repetidas="$(sort "$f" | uniq -c | awk '$1 > 3 {$1=""; print substr($0,2)}')"
+    if [ -n "$repetidas" ]; then
+        grep -vxF "$repetidas" "$f" 2>/dev/null | tail -25 | sed 's/^/  /'
+    else
+        tail -25 "$f" | sed 's/^/  /'
+    fi
+    echo
+    info "log completo:  cat $f"
 }
 
 cmd_clean() {
