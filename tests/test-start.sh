@@ -37,6 +37,20 @@ chk "LANG do host ausente" "0" "$(printf '%s' "$o2" | grep -c 'ISO-8859-1')"
 echo "-- word splitting do --extra"
 chk_match '--extra "a b" vira argumentos separados' '\[2\] <-force-bgra>' "$(run 'start --extra "-force-bgra -dpi 96"')"
 
+echo "-- vsync (padrao off: X aninhado nao tem vblank de hardware)"
+# O comando enviado ao proot leva as DUAS ramificacoes do case, entao nao da
+# para conferir por grep no corpo: o que importa e qual ramo o case seleciona.
+o="$(run start)"
+chk_match "padrão seleciona o ramo 'off'" "case 'off' in" "$o"
+chk_match "as duas opções estão no script" "vblank_mode=0" "$o"
+ov="$(run 'start --vsync on')"
+chk_match "--vsync on seleciona o ramo 'on'" "case 'on' in" "$ov"
+chk "e nada mais muda entre os dois"  "1" \
+    "$( [ "$(printf '%s' "$o" | grep -c 'MESA_LOADER_DRIVER_OVERRIDE=kgsl')" = \
+         "$(printf '%s' "$ov" | grep -c 'MESA_LOADER_DRIVER_OVERRIDE=kgsl')" ] && echo 1 || echo 0)"
+chk_match "--vsync invalido recusado"     "use 'on' ou 'off'" "$(run 'start --vsync sim')"
+chk_match "--vsync sem valor recusado"    "exige um valor"    "$(run 'start --vsync')"
+
 echo "-- log em vez de inundar o terminal"
 chk_match "informa o caminho do log" "log da sessão" "$(run start)"
 chk_match "--verbose nao redireciona" "Ambiente"     "$(run 'start --verbose')"

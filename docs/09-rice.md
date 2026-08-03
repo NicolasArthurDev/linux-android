@@ -199,40 +199,45 @@ celular, o KDE continua sendo o prático.
 
 ## Cores piscando / travadas
 
-Sintoma: a tela pisca rosa, ou congela por instantes. Há três suspeitos, e vale
-isolar em vez de chutar — **cada teste leva 30 segundos**:
+**Provável causa: sincronização vertical forçada.** O padrão do projeto já vem
+corrigido — se você está atualizado, não deve mais acontecer.
+
+### O que era
+
+O `lx start` exportava `vblank_mode=3` ("sempre sincronizar com o vblank"),
+escolha herdada de desktop comum. Mas aqui:
+
+- o **Termux:X11 é um servidor X aninhado** — não existe vblank de hardware para
+  sincronizar;
+- num monitor via DeX o painel do aparelho é **120 Hz** e a saída externa é
+  **60 Hz**, então o desenho tentava se acertar com um relógio que não é o da
+  tela final;
+- a cadência real quem faz é o **SurfaceFlinger do Android**, depois de nós.
+
+O sintoma era travar por instantes e piscar rosa.
+
+A evidência que fechou o diagnóstico: com `--gpu software` **não havia piscar
+nenhum** — e o `llvmpipe` simplesmente não faz vsync.
+
+### Hoje
 
 ```bash
-# 1) o compositor
+lx start                  # vsync desligado (padrão)
+lx start --vsync on       # liga, se quiser comparar
+```
+
+Se ainda piscar, o próximo suspeito é o compositor:
+
+```bash
 lx stop && lx start --no-picom
 ```
-Se parar de piscar, é o picom. Aí ajuste `~/.config/picom/picom.conf` dentro do
-Ubuntu: comece ligando o vsync, que é o contrário do padrão atual.
+
+E o `-force-bgra` continua valendo para o caso específico de **cores trocadas**
+(azul aparecendo como vermelho), que é problema diferente de piscar:
 
 ```bash
-lx shell
-sed -i 's/^vsync = false/vsync = true/' ~/.config/picom/picom.conf
-exit
+lx start --extra "-force-bgra"
 ```
-
-```bash
-# 2) o formato de cor do Termux:X11
-lx stop && lx start --extra "-force-bgra"
-```
-Rosa é um sintoma clássico de canais de cor trocados. Se resolver, é isto.
-
-```bash
-# 3) a GPU
-lx stop && lx start --gpu software
-```
-Lento, mas se as cores estabilizarem o problema está no driver Turnip.
-
-> Rode um por vez, na ordem. Combinar os três esconde qual era a causa.
-
-Descobriu qual? Vale [abrir uma issue][issues] dizendo qual dos três resolveu —
-assim o padrão do projeto pode mudar com base em evidência.
-
-[issues]: https://github.com/NicolasArthurDev/linux-android/issues
 
 ---
 

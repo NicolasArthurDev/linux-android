@@ -1850,7 +1850,7 @@ cmd_start() {
     require_termux "start"
     require_ubuntu_installed
 
-    local gpu_mode="auto" x11_extra="${X11_EXTRA:-}" use_alt=0 de="${LX_DE:-$(read_default_de)}" verbose=0 no_picom=0
+    local gpu_mode="auto" x11_extra="${X11_EXTRA:-}" use_alt=0 de="${LX_DE:-$(read_default_de)}" verbose=0 no_picom=0 vsync="${LX_VSYNC:-off}"
 
     while [ $# -gt 0 ]; do
         case "$1" in
@@ -1867,6 +1867,10 @@ cmd_start() {
                 [ $# -ge 2 ] || die "--de exige um valor: kde | bspwm | xfce"
                 de="$2"; shift 2 ;;
             --alt)   use_alt=1; shift ;;
+            --vsync)
+                [ $# -ge 2 ] || die "--vsync exige um valor: on | off"
+                case "$2" in on|off) vsync="$2" ;; *) die "--vsync: use 'on' ou 'off'" ;; esac
+                shift 2 ;;
             --no-picom) no_picom=1; shift ;;
             -v|--verbose) verbose=1; shift ;;
             *) die "opção desconhecida em 'start': $1" ;;
@@ -1999,8 +2003,22 @@ cmd_start() {
         case '${gpu_mode}' in
             turnip)
                 export MESA_LOADER_DRIVER_OVERRIDE=kgsl
-                export vblank_mode=3
-                export MESA_VK_WSI_PRESENT_MODE=mailbox
+                # vblank_mode: 0 = nunca sincronizar, 3 = sempre.
+                #
+                # O padrao e 0, e isso e deliberado. O Termux:X11 e um servidor
+                # X ANINHADO — nao existe vblank de hardware para sincronizar.
+                # Forcar sincronia ali causa travadas e piscar, ainda mais
+                # quando o painel do aparelho e 120 Hz e a saida (DeX/HDMI) e
+                # 60 Hz: o desenho tenta se acertar com um relogio que nao e o
+                # da tela final. A cadencia real quem faz e o SurfaceFlinger do
+                # Android, depois de nos.
+                #
+                # A evidencia: com --gpu software nao havia piscar nenhum, e o
+                # llvmpipe simplesmente nao faz vsync.
+                case '${vsync}' in
+                    on)  export vblank_mode=3; export MESA_VK_WSI_PRESENT_MODE=fifo ;;
+                    *)   export vblank_mode=0; export MESA_VK_WSI_PRESENT_MODE=mailbox ;;
+                esac
                 ;;
             virgl)
                 export GALLIUM_DRIVER=virpipe
@@ -2592,6 +2610,11 @@ ${C_BOLD}COMANDOS${C_RESET}
         --alt             método alternativo (-xstartup), se o normal falhar
         --no-picom        inicia sem o compositor (isola problemas de
                           renderização — tela preta com tudo rodando)
+        --vsync on|off    sincronização vertical (padrão: off).
+                          Deixe 'off': o Termux:X11 é um X aninhado, sem
+                          vblank de hardware, e forçar sincronia causa
+                          travadas e piscar — sobretudo com painel de
+                          120 Hz e saída externa de 60 Hz.
         -v, --verbose     mostra a saída da sessão no terminal em vez de
                           mandar para o log (útil para diagnosticar)
         --extra "FLAGS"   flags do termux-x11:

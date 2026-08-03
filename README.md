@@ -147,7 +147,7 @@ Dois detalhes que o script resolve por você:
 ./tests/run.sh rice         # só as suites que casam com "rice"
 ```
 
-158 verificações que **não instalam nada**: carregam o `lx` com o `main()`
+164 verificações que **não instalam nada**: carregam o `lx` com o `main()`
 removido e substituem os comandos externos por mocks que registram como foram
 chamados. Cobrem detecção de contexto, layouts do proot-distro, resolução de
 GPU e locale, quoting do comando enviado ao proot, tolerância a pacote

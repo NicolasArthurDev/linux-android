@@ -112,7 +112,7 @@ O `glxinfo` costuma cuspir isto antes do resultado. **Nada aqui é problema:**
 ```
 ATTENTION: default value of option vblank_mode overridden by environment.
 ```
-É o próprio `lx start`, que define `vblank_mode=3` para reduzir tearing.
+É o próprio `lx start`, que define `vblank_mode` explicitamente.
 
 ```
 MESA-LOADER: failed to retrieve device information
@@ -189,11 +189,24 @@ kwriteconfig5 --file kwinrc --group Compositing --key Enabled true
 
 Se piorar, desative de novo (`false`). No Plasma 6 o comando é `kwriteconfig6`.
 
-### Tearing (a imagem "rasga" ao rolar)
+### Tearing, piscar ou travadas
 
-O `lx start` já exporta `vblank_mode=3` e `MESA_VK_WSI_PRESENT_MODE=mailbox`
-no modo Turnip, que é o contorno recomendado. Se persistir, reative o compositor
-(acima) — ele sincroniza o desenho.
+O `lx start` roda com **vsync desligado** (`vblank_mode=0`) de propósito.
+
+Parece contraintuitivo — vsync existe justamente para evitar tearing —, mas o
+Termux:X11 é um servidor X **aninhado**: não há vblank de hardware para
+sincronizar. Forçar sincronia ali causava travadas e piscar, sobretudo com
+monitor externo, onde o painel do aparelho é 120 Hz e a saída é 60 Hz. Quem faz
+a cadência de verdade é o SurfaceFlinger do Android, depois de nós.
+
+Para comparar:
+
+```bash
+lx start --vsync on
+```
+
+Se houver tearing de verdade ao rolar, o caminho é o compositor (que sincroniza
+o desenho), não o `vblank_mode`.
 
 ### O desktop não sobe depois de ativar a GPU
 
