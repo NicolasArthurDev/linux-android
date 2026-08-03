@@ -6,3 +6,10 @@
 
 # APKs baixados (não versionar binários)
 *.apk
+
+# Lixo de redirecionamento acidental (ex.: '2>&1' malformado cria um
+# arquivo com o nome do comando). Nunca deve ser versionado.
+/bash
+/sh
+/sed
+/grep
