@@ -706,6 +706,430 @@ cmd_browser() {
     fi
 }
 
+
+# ===========================================================================
+#  Rice — bspwm + Catppuccin Mocha
+# ===========================================================================
+#
+#  Escolha de componentes, e por que:
+#
+#    bspwm + sxhkd  tiling por arvore, tudo controlavel via 'bspc'
+#    polybar        barra. (Waybar NAO serve: e Wayland-only, e aqui o
+#                   Termux:X11 e um servidor X)
+#    rofi           launcher
+#    picom          cantos arredondados + transparencia
+#    kitty          terminal acelerado por GPU — faz sentido com a Adreno ativa
+#    dunst          notificacoes
+#
+#  Sobre o visual: cantos arredondados + gaps largos + transparencia simples
+#  dao o resultado minimalista tipo Hyprland SEM blur. Blur e o efeito mais
+#  caro de todos e derruba o desempenho em proot; tudo o mais e barato.
+#
+#  Hyprland nao e opcao: e Wayland puro. Rodar aninhado exigiria wlroots
+#  compilado com backend X11, que os pacotes de distro nao trazem.
+
+CATPPUCCIN_ROSEWATER="#f5e0dc"; CATPPUCCIN_MAUVE="#cba6f7"
+CATPPUCCIN_BASE="#1e1e2e";      CATPPUCCIN_SURFACE="#313244"
+CATPPUCCIN_TEXT="#cdd6f4";      CATPPUCCIN_BLUE="#89b4fa"
+
+install_nerd_font_inside() {
+    step "Fonte JetBrainsMono Nerd Font"
+    if fc-list 2>/dev/null | grep -qi "JetBrainsMono Nerd"; then
+        ok "já instalada"; return 0
+    fi
+    # A 'fonts-jetbrains-mono' do apt NAO tem os glifos de icone que a polybar
+    # usa — precisa da versao "patched" do projeto nerd-fonts.
+    local url tmp
+    url="$(gh_latest_asset ryanoasis/nerd-fonts 'JetBrainsMono\.tar\.xz')"
+    [ -n "$url" ] || { warn "não achei o release da Nerd Font"; return 1; }
+    tmp="$(mktemp -d /tmp/nf-XXXXXX)"
+    if fetch "$url" "$tmp/f.tar.xz"; then
+        mkdir -p /usr/local/share/fonts/JetBrainsMonoNerd
+        tar -xJf "$tmp/f.tar.xz" -C /usr/local/share/fonts/JetBrainsMonoNerd 2>/dev/null
+        fc-cache -f >/dev/null 2>&1
+        ok "instalada"
+    else
+        warn "download da fonte falhou"
+    fi
+    rm -rf "$tmp"
+}
+
+write_rice_configs() {
+    local H="${HOME:-/root}"
+    step "Escrevendo configurações em ${H}/.config"
+    mkdir -p "$H/.config"/{bspwm,sxhkd,polybar,picom,rofi,kitty,dunst}
+
+    # ---------------- bspwm ----------------
+    cat > "$H/.config/bspwm/bspwmrc" <<'BSPWM'
+#!/bin/sh
+# Gerado por 'lx rice'. Recarregue com: super + shift + r
+
+pgrep -x sxhkd >/dev/null || sxhkd &
+
+# Fundo. Troque por uma imagem com:  feh --bg-fill ~/wall.png
+xsetroot -solid "#1e1e2e"
+
+picom --config "$HOME/.config/picom/picom.conf" &
+dunst &
+"$HOME/.config/polybar/launch.sh" &
+
+bspc monitor -d 1 2 3 4 5
+
+# Gaps largos + borda fina: e o que da o ar "minimalista" do rice.
+bspc config border_width          2
+bspc config window_gap            14
+bspc config top_padding           34   # espaco para a polybar
+bspc config split_ratio           0.52
+bspc config borderless_monocle    true
+bspc config gapless_monocle       true
+bspc config focus_follows_pointer true
+bspc config pointer_modifier      mod4
+
+# Catppuccin Mocha
+bspc config normal_border_color   "#313244"
+bspc config active_border_color   "#45475a"
+bspc config focused_border_color  "#cba6f7"
+bspc config presel_feedback_color "#89b4fa"
+
+bspc rule -a Kitty          state=tiled
+bspc rule -a firefox        desktop='^1'
+bspc rule -a Pavucontrol    state=floating
+BSPWM
+    chmod +x "$H/.config/bspwm/bspwmrc"
+
+    # ---------------- sxhkd ----------------
+    cat > "$H/.config/sxhkd/sxhkdrc" <<'SXHKD'
+# Gerado por 'lx rice'.  super = tecla Windows/Command do teclado.
+
+# --- essenciais ---
+super + Return
+    kitty
+super + d
+    rofi -show drun
+super + shift + q
+    bspc node -c
+super + shift + r
+    bspc wm -r
+super + shift + e
+    bspc quit
+
+# --- foco / movimento ---
+super + {h,j,k,l}
+    bspc node -f {west,south,north,east}
+super + shift + {h,j,k,l}
+    bspc node -s {west,south,north,east}
+
+# --- layout ---
+super + f
+    bspc node -t "~"fullscreen
+super + space
+    bspc node -t "~"floating
+super + m
+    bspc desktop -l next
+
+# --- redimensionar ---
+super + control + {h,j,k,l}
+    bspc node -z {left -40 0,bottom 0 40,top 0 -40,right 40 0}
+
+# --- areas de trabalho ---
+super + {1-5}
+    bspc desktop -f '^{1-5}'
+super + shift + {1-5}
+    bspc node -d '^{1-5}' --follow
+
+# --- extras ---
+super + shift + s
+    rofi -show run
+super + b
+    firefox
+SXHKD
+
+    # ---------------- picom ----------------
+    cat > "$H/.config/picom/picom.conf" <<'PICOM'
+# Gerado por 'lx rice'.
+#
+# SEM blur de proposito: e o efeito mais caro e o unico que realmente pesa
+# em proot. Cantos arredondados + transparencia dao o mesmo visual por uma
+# fracao do custo.
+
+backend = "glx";        # com a GPU ativa (FD740). Se piscar, use "xrender".
+vsync = false;          # true costuma causar stutter sob o Termux:X11
+
+corner-radius = 12;
+round-borders = 1;
+
+shadow = true;
+shadow-radius = 14;
+shadow-opacity = 0.35;
+shadow-offset-x = -14;
+shadow-offset-y = -14;
+
+fading = true;
+fade-in-step = 0.06;
+fade-out-step = 0.06;
+
+inactive-opacity = 0.92;
+active-opacity = 1.00;
+frame-opacity = 1.00;
+
+detect-rounded-corners = true;
+detect-client-opacity = true;
+PICOM
+
+    # ---------------- polybar ----------------
+    cat > "$H/.config/polybar/config.ini" <<'POLY'
+; Gerado por 'lx rice'. Catppuccin Mocha.
+
+[colors]
+base     = #1e1e2e
+mantle   = #181825
+surface  = #313244
+text     = #cdd6f4
+subtext  = #a6adc8
+mauve    = #cba6f7
+blue     = #89b4fa
+green    = #a6e3a1
+peach    = #fab387
+red      = #f38ba8
+
+[bar/main]
+width         = 100%
+height        = 28
+radius        = 10
+background    = ${colors.base}
+foreground    = ${colors.text}
+line-size     = 2
+padding       = 1
+module-margin = 1
+offset-x      = 8
+offset-y      = 6
+font-0        = JetBrainsMono Nerd Font:size=10;2
+font-1        = JetBrainsMono Nerd Font:size=13;3
+modules-left   = bspwm
+modules-center = title
+modules-right  = cpu memory date
+cursor-click   = pointer
+enable-ipc     = true
+
+[module/bspwm]
+type = internal/bspwm
+label-focused            = %name%
+label-focused-background = ${colors.surface}
+label-focused-foreground = ${colors.mauve}
+label-focused-padding    = 1
+label-occupied           = %name%
+label-occupied-foreground = ${colors.subtext}
+label-occupied-padding   = 1
+label-empty              = %name%
+label-empty-foreground   = #585b70
+label-empty-padding      = 1
+
+[module/title]
+type = internal/xwindow
+label = %title:0:60:...%
+label-foreground = ${colors.subtext}
+
+[module/cpu]
+type = internal/cpu
+interval = 2
+format-prefix = " "
+format-prefix-foreground = ${colors.peach}
+label = %percentage:2%%
+
+[module/memory]
+type = internal/memory
+interval = 3
+format-prefix = " "
+format-prefix-foreground = ${colors.green}
+label = %gb_used%
+
+[module/date]
+type = internal/date
+interval = 30
+date = %H:%M
+date-alt = %d/%m %H:%M
+format-prefix = " "
+format-prefix-foreground = ${colors.blue}
+label = %date%
+POLY
+
+    cat > "$H/.config/polybar/launch.sh" <<'PLAUNCH'
+#!/usr/bin/env bash
+killall -q polybar 2>/dev/null
+while pgrep -x polybar >/dev/null; do sleep 0.3; done
+polybar main -c "$HOME/.config/polybar/config.ini" >/tmp/polybar.log 2>&1 &
+PLAUNCH
+    chmod +x "$H/.config/polybar/launch.sh"
+
+    # ---------------- rofi ----------------
+    cat > "$H/.config/rofi/config.rasi" <<'ROFI'
+configuration {
+    modi: "drun,run,window";
+    show-icons: true;
+    icon-theme: "Papirus-Dark";
+    font: "JetBrainsMono Nerd Font 11";
+    drun-display-format: "{name}";
+}
+* {
+    bg:     #1e1e2e;
+    bg-alt: #313244;
+    fg:     #cdd6f4;
+    accent: #cba6f7;
+    background-color: transparent;
+    text-color: @fg;
+}
+window   { background-color: @bg; border-radius: 12px; width: 46%; padding: 12px; }
+inputbar { background-color: @bg-alt; border-radius: 8px; padding: 8px; spacing: 8px; }
+prompt   { text-color: @accent; }
+listview { lines: 8; spacing: 4px; padding: 8px 0 0 0; }
+element  { padding: 8px; border-radius: 8px; }
+element selected { background-color: @accent; text-color: @bg; }
+element-icon { size: 20px; padding: 0 8px 0 0; }
+ROFI
+
+    # ---------------- kitty ----------------
+    cat > "$H/.config/kitty/kitty.conf" <<'KITTY'
+# Gerado por 'lx rice'. Catppuccin Mocha.
+font_family      JetBrainsMono Nerd Font
+font_size        11.0
+window_padding_width 10
+background_opacity   0.92
+confirm_os_window_close 0
+enable_audio_bell no
+
+foreground #cdd6f4
+background #1e1e2e
+selection_foreground #1e1e2e
+selection_background #f5e0dc
+cursor #f5e0dc
+url_color #f5e0dc
+active_border_color   #b4befe
+inactive_border_color #6c7086
+active_tab_foreground   #11111b
+active_tab_background   #cba6f7
+inactive_tab_foreground #cdd6f4
+inactive_tab_background #181825
+
+color0 #45475a
+color8 #585b70
+color1 #f38ba8
+color9 #f38ba8
+color2 #a6e3a1
+color10 #a6e3a1
+color3 #f9e2af
+color11 #f9e2af
+color4 #89b4fa
+color12 #89b4fa
+color5 #f5c2e7
+color13 #f5c2e7
+color6 #94e2d5
+color14 #94e2d5
+color7 #bac2de
+color15 #a6adc8
+KITTY
+
+    # ---------------- dunst ----------------
+    cat > "$H/.config/dunst/dunstrc" <<'DUNST'
+[global]
+    monitor = 0
+    follow = none
+    width = 320
+    height = 120
+    origin = top-right
+    offset = 14x44
+    corner_radius = 10
+    frame_width = 2
+    frame_color = "#cba6f7"
+    separator_color = frame
+    font = JetBrainsMono Nerd Font 10
+    padding = 12
+    horizontal_padding = 12
+
+[urgency_low]
+    background = "#1e1e2e"
+    foreground = "#cdd6f4"
+[urgency_normal]
+    background = "#1e1e2e"
+    foreground = "#cdd6f4"
+[urgency_critical]
+    background = "#1e1e2e"
+    foreground = "#f38ba8"
+    frame_color = "#f38ba8"
+DUNST
+
+    ok "configurações escritas"
+}
+
+install_rice_inside() {
+    [ "$CTX" = "ubuntu" ] || die "install_rice_inside só roda dentro do Ubuntu."
+    export DEBIAN_FRONTEND=noninteractive
+
+    header "Rice: bspwm + Catppuccin Mocha"
+
+    apt update || warn "apt update com erro (seguindo)"
+    enable_universe || true
+
+    step "Instalando os componentes..."
+    # Quase todos estao em 'universe' — por isso o enable_universe acima.
+    apt install -y \
+        bspwm sxhkd polybar rofi picom dunst \
+        kitty feh xsetroot x11-xserver-utils xdotool wmctrl \
+        libnotify-bin papirus-icon-theme fontconfig \
+        || warn "algum pacote falhou (seguindo)"
+
+    # xsetroot vem em x11-xserver-utils; o pacote solto nem sempre existe.
+    have xsetroot || apt install -y x11-xserver-utils >/dev/null 2>&1 || true
+
+    install_nerd_font_inside
+    write_rice_configs
+
+    if [ ! -x /usr/bin/bspwm ]; then
+        err "o bspwm não foi instalado — o rice não vai subir."
+        return 1
+    fi
+
+    cat <<'MSG'
+
+============================================================
+ Rice instalado.
+
+ Para iniciar, no TERMUX:
+
+     lx stop
+     lx start --de bspwm
+
+ Atalhos (super = tecla Windows do teclado):
+
+     super + Enter        terminal (kitty)
+     super + d            launcher (rofi)
+     super + b            navegador
+     super + 1..5         trocar de área de trabalho
+     super + h/j/k/l      mover o foco
+     super + shift + hjkl mover a janela
+     super + f            tela cheia
+     super + space        flutuante
+     super + shift + q    fechar janela
+     super + shift + r    recarregar o bspwm
+     super + shift + e    sair da sessão
+
+ Sem teclado físico o bspwm é pouco usável — ele é feito
+ para ser dirigido pelo teclado. Ideal com o monitor externo.
+
+ Para voltar ao KDE:  lx start --de kde
+============================================================
+MSG
+}
+
+cmd_rice() {
+    if [ "$CTX" = "ubuntu" ]; then
+        install_rice_inside
+    else
+        require_termux "rice"
+        require_ubuntu_installed
+        run_in_ubuntu rice-install
+    fi
+}
+
 # ===========================================================================
 #  Ambiente de desenvolvimento
 # ===========================================================================
@@ -1132,7 +1556,7 @@ cmd_start() {
     require_termux "start"
     require_ubuntu_installed
 
-    local gpu_mode="auto" x11_extra="${X11_EXTRA:-}" use_alt=0
+    local gpu_mode="auto" x11_extra="${X11_EXTRA:-}" use_alt=0 de="${LX_DE:-kde}"
 
     while [ $# -gt 0 ]; do
         case "$1" in
@@ -1145,6 +1569,9 @@ cmd_start() {
             --extra)
                 [ $# -ge 2 ] || die "--extra exige um valor, ex: --extra \"-force-bgra\""
                 x11_extra="$2"; shift 2 ;;
+            --de)
+                [ $# -ge 2 ] || die "--de exige um valor: kde | bspwm | xfce"
+                de="$2"; shift 2 ;;
             --alt)   use_alt=1; shift ;;
             *) die "opção desconhecida em 'start': $1" ;;
         esac
@@ -1153,7 +1580,30 @@ cmd_start() {
     gpu_mode="$(resolve_gpu_mode "$gpu_mode")" \
         || die "GPU_MODE inválido. Use: auto | turnip | virgl | software"
 
+    # Cada ambiente tem seu comando de sessao. Conferimos o binario no rootfs
+    # antes de subir: sem isto o X sobe, o cliente morre na hora e o usuario ve
+    # so uma tela preta, sem pista do motivo.
+    local session_cmd session_bin
+    case "$de" in
+        kde)   session_bin="startplasma-x11" ;;
+        bspwm) session_bin="bspwm"           ;;
+        xfce)  session_bin="startxfce4"      ;;
+        *) die "ambiente desconhecido: '$de' (use: kde | bspwm | xfce)" ;;
+    esac
+    session_cmd="$session_bin"
+
+    if [ ! -x "${ROOTFS}/usr/bin/${session_bin}" ]; then
+        err "'${session_bin}' não encontrado dentro do Ubuntu."
+        case "$de" in
+            bspwm) info "instale o ambiente rice com:  lx rice" ;;
+            xfce)  info "instale com:  lx shell  →  apt install -y xfce4 xfce4-terminal" ;;
+            kde)   info "rode:  lx setup" ;;
+        esac
+        exit 1
+    fi
+
     header "Iniciando o desktop"
+    say "Ambiente:     ${C_BOLD}${de}${C_RESET}"
     say "Renderização: ${C_BOLD}${gpu_mode}${C_RESET}"
     [ "$gpu_mode" = "software" ] && info "rode './lx gpu' para ativar a GPU (bem mais rápido)"
 
@@ -1234,7 +1684,7 @@ cmd_start() {
                 export LIBGL_ALWAYS_SOFTWARE=1
                 ;;
         esac
-        dbus-launch --exit-with-session startplasma-x11
+        dbus-launch --exit-with-session ${session_cmd}
     "
 
     if [ "$use_alt" -eq 1 ]; then
@@ -1569,6 +2019,7 @@ ${C_BOLD}COMANDOS${C_RESET}
                         Pula o que já está feito — pode rodar de novo.
 
     ${C_BOLD}start${C_RESET} [opções]      Inicia o desktop.
+        --de AMBIENTE     kde (padrão) | bspwm | xfce
         --gpu MODO        auto (padrão) | turnip | virgl | software
         --alt             método alternativo (-xstartup), se o normal falhar
         --extra "FLAGS"   flags do termux-x11:
@@ -1593,6 +2044,12 @@ ${C_BOLD}COMANDOS${C_RESET}
                         Termux por um wrapper que executa no Ubuntu.
 
     ${C_BOLD}gpu${C_RESET}                 Ativa a aceleração de GPU (Turnip/Adreno).
+
+    ${C_BOLD}rice${C_RESET}                Instala um desktop "rice": bspwm + sxhkd, polybar,
+                        rofi, picom (cantos arredondados e transparência),
+                        kitty, dunst e a fonte JetBrainsMono Nerd, tudo com
+                        a paleta Catppuccin Mocha.
+                        Depois:  lx start --de bspwm
 
     ${C_BOLD}browser${C_RESET} [qual]      Instala um navegador que REALMENTE roda em proot.
                         qual: firefox (padrão) | falkon
@@ -1651,6 +2108,7 @@ main() {
         dev)              cmd_dev "$@" ;;
         gpu)              cmd_gpu ;;
         browser|navegador) cmd_browser "$@" ;;
+        rice)             cmd_rice ;;
         doctor|diag)      cmd_doctor ;;
         status)           cmd_status ;;
         shell|ubuntu)     cmd_shell ;;
@@ -1670,6 +2128,7 @@ main() {
         setup-kde)        install_kde_inside ;;
         setup-gpu)        install_gpu_inside ;;
         browser-install)  install_browser_inside "$@" ;;
+        rice-install)     install_rice_inside ;;
 
         *) err "comando desconhecido: '$cmd'"; echo; cmd_help; exit 1 ;;
     esac

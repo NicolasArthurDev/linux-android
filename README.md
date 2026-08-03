@@ -81,6 +81,7 @@ Sem argumento nenhum ele abre um **menu interativo**. Se preferir digitar:
 | `./lx dev` | Ambiente de desenvolvimento (zsh, NvChad, tmux, lazygit...) |
 | `./lx gpu` | Ativa a aceleração de GPU |
 | `./lx browser` | Instala um navegador que **realmente** roda em proot (o do apt é snap) |
+| `./lx rice` | Desktop "rice": bspwm + polybar + rofi + picom, tema Catppuccin Mocha |
 | `./lx doctor` | **Diagnostica o que está faltando** — rode este quando algo der errado |
 | `./lx status` | Mostra quais etapas já foram concluídas |
 | `./lx shell` | Abre um terminal dentro do Ubuntu |
@@ -132,6 +133,7 @@ Dois detalhes que o script resolve por você:
 | [monitor externo](docs/06-monitor-externo.md) | hub USB-C, HDMI, DeX — virar um computador |
 | [aceleração de GPU](docs/07-aceleracao-gpu.md) | Turnip/Adreno, o maior ganho do projeto |
 | [dentro do desktop](docs/08-dentro-do-desktop.md) | subiu o KDE, e agora? terminal, rede, deixar bonito |
+| [rice](docs/09-rice.md) | bspwm + Catppuccin Mocha, tiling e atalhos de teclado |
 
 ---
 
