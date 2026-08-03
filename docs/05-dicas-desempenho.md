@@ -23,30 +23,17 @@ e renderizado por software, alguns ajustes ajudam muito.
 Se o KDE ficar pesado demais, o **XFCE** é muito mais leve e estável em proot.
 Vários guias de Linux no Android usam XFCE justamente por isso.
 
-Instale dentro do Ubuntu:
-
 ```bash
 lx shell
 apt install -y xfce4 xfce4-terminal dbus-x11
 exit
+
+lx start --de xfce      # uma vez
+lx de xfce              # ou como padrão
 ```
 
-Depois edite o `lx`: no final da função `cmd_start`, na variável `inner`,
-troque a última linha de
-
-```bash
-dbus-launch --exit-with-session startplasma-x11
-```
-
-para
-
-```bash
-dbus-launch --exit-with-session startxfce4
-```
-
-> ⚠️ **O `lx` ainda não tem uma flag para escolher o desktop** — por enquanto é
-> edição manual, e um `git pull` sobrescreve a mudança. Se você acabar usando
-> XFCE de vez, vale abrir uma *issue* pedindo um `lx start --de xfce`.
+Os três ambientes convivem — `lx de` mostra qual está ativo e o que já está
+instalado.
 
 Antes de migrar, teste ativar a [GPU](07-aceleracao-gpu.md): o KDE acelerado
 costuma ficar mais confortável que o XFCE em software.
