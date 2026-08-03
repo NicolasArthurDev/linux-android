@@ -153,4 +153,12 @@ fonte faltando; confira com `fc-list | grep -i "JetBrainsMono Nerd"`.
 
 **Ícones como quadradinhos** — a Nerd Font não instalou. Rode `lx rice` de novo.
 
+**"o bspwm não foi instalado"** — rode `lx rice` de novo. Ao final ele agora
+lista exatamente quais binários faltaram e o que instalar. Se algum insistir:
+
+```bash
+lx shell
+apt install -y <pacote>
+```
+
 **Quero voltar ao KDE** — `lx start --de kde`. Nada foi removido.

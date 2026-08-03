@@ -232,6 +232,38 @@ gh_latest_asset() {
     printf '%s' "$body" | grep -o "https://[^\"]*${pattern}" | head -n 1
 }
 
+# Instala pacotes tolerando nomes que nao existem.
+#
+# POR QUE: 'apt install a b c' e tudo-ou-nada. Se UM nome nao existir, o apt
+# aborta e nao instala NENHUM dos outros. Um unico erro de digitacao derruba a
+# instalacao inteira — foi exatamente o que aconteceu com 'xsetroot' (que nao e
+# pacote: o binario vem dentro de x11-xserver-utils), levando junto o bspwm.
+#
+# Estrategia: tenta o lote (rapido); se falhar, cai para um a um e reporta o
+# que ficou de fora, em vez de perder tudo.
+apt_install_soft() {
+    apt install -y "$@" && return 0
+    warn "instalação em lote falhou — tentando pacote a pacote"
+    local pkg falhas=""
+    for pkg in "$@"; do
+        apt install -y "$pkg" >/dev/null 2>&1 || falhas="${falhas} ${pkg}"
+    done
+    [ -n "$falhas" ] && warn "não instalados:${falhas}"
+    return 0
+}
+
+# Mesma ideia no lado do Termux.
+pkg_install_soft() {
+    pkg install -y "$@" && return 0
+    warn "instalação em lote falhou — tentando pacote a pacote"
+    local pkg falhas=""
+    for pkg in "$@"; do
+        pkg install -y "$pkg" >/dev/null 2>&1 || falhas="${falhas} ${pkg}"
+    done
+    [ -n "$falhas" ] && warn "não instalados:${falhas}"
+    return 0
+}
+
 # ===========================================================================
 #  Verificações do lado Android (não dá para automatizar — só detectar/guiar)
 # ===========================================================================
@@ -499,8 +531,7 @@ install_kde_inside() {
         sudo nano curl wget \
         pulseaudio-utils \
         fonts-noto fonts-noto-cjk \
-        locales \
-        || die "falha ao instalar o KDE."
+        locales
 
     step "Configurando locale..."
     locale-gen en_US.UTF-8 pt_BR.UTF-8 || true
@@ -1092,20 +1123,33 @@ install_rice_inside() {
 
     step "Instalando os componentes..."
     # Quase todos estao em 'universe' — por isso o enable_universe acima.
-    apt install -y \
+    # Nada de 'xsetroot' aqui: NAO existe pacote com esse nome. O binario vem
+    # dentro de x11-xserver-utils, que e o que pedimos.
+    apt_install_soft \
         bspwm sxhkd polybar rofi picom dunst \
-        kitty feh xsetroot x11-xserver-utils xdotool wmctrl \
-        libnotify-bin papirus-icon-theme fontconfig \
-        || warn "algum pacote falhou (seguindo)"
-
-    # xsetroot vem em x11-xserver-utils; o pacote solto nem sempre existe.
-    have xsetroot || apt install -y x11-xserver-utils >/dev/null 2>&1 || true
+        kitty feh x11-xserver-utils xdotool wmctrl \
+        libnotify-bin papirus-icon-theme fontconfig
 
     install_nerd_font_inside
     write_rice_configs
 
-    if [ ! -x /usr/bin/bspwm ]; then
+    # Confere os binarios de verdade, em vez de confiar no apt.
+    local faltando="" b
+    for b in bspwm sxhkd polybar rofi picom kitty xsetroot; do
+        have "$b" || faltando="${faltando} ${b}"
+    done
+    if [ -n "$faltando" ]; then
+        warn "faltaram:${faltando}"
+        for b in $faltando; do
+            case "$b" in
+                xsetroot) info "  xsetroot vem em: x11-xserver-utils" ;;
+                *)        info "  tente: apt install -y $b" ;;
+            esac
+        done
+    fi
+    if ! have bspwm; then
         err "o bspwm não foi instalado — o rice não vai subir."
+        info "rode 'lx rice' de novo; se insistir, instale à mão com 'lx shell'"
         return 1
     fi
 
@@ -1216,11 +1260,10 @@ dev_termux() {
 
     step "Instalando pacotes"
     # Estes existem todos nos repositórios do Termux.
-    pkg install -y \
+    pkg_install_soft \
         zsh git tmux btop bat fzf lazygit \
         neovim nodejs ripgrep fd \
-        clang make python openssh \
-        || warn "algum pacote falhou (seguindo)"
+        clang make python openssh
 
     # fastfetch substitui o neofetch, que está descontinuado desde 2024.
     if pkg install -y fastfetch 2>/dev/null; then
@@ -1347,11 +1390,10 @@ dev_ubuntu_inside() {
 
     step "Instalando pacotes do apt"
     apt update || warn "apt update com erro (seguindo)"
-    apt install -y \
+    apt_install_soft \
         zsh git tmux btop bat fzf ripgrep fd-find \
         curl wget unzip build-essential \
-        nodejs npm python3 python3-pip \
-        || warn "algum pacote falhou (seguindo)"
+        nodejs npm python3 python3-pip
 
     # No Debian/Ubuntu o binário do bat se chama 'batcat' (conflito de nome com
     # outro pacote antigo). Criamos um link para 'bat' funcionar como esperado.
