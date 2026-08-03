@@ -17,7 +17,7 @@ chk "menu não está vazio" "sim" "$([ -n "$ofer" ] && echo sim || echo nao)"
 
 echo "-- comandos publicos alcancaveis pelo menu"
 # Comandos que fazem sentido no menu (os internos e aliases ficam de fora).
-for c in setup dev gpu browser rice start stop de shell doctor status log report update clean install; do
+for c in setup dev gpu browser rice vscode start stop de shell doctor status log report update clean install; do
     printf '%s' "$MENU" | grep -qE "cmd_${c}|menu_${c}" \
         && { printf '  \033[32mok\033[0m   %s\n' "$c"; _pass=$((_pass+1)); } \
         || { printf '  \033[31mFALHA\033[0m %s ausente do menu\n' "$c"; _fail=$((_fail+1)); }

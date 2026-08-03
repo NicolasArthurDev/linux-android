@@ -197,6 +197,45 @@ celular, o KDE continua sendo o prático.
 
 ---
 
+## Cores piscando / travadas
+
+Sintoma: a tela pisca rosa, ou congela por instantes. Há três suspeitos, e vale
+isolar em vez de chutar — **cada teste leva 30 segundos**:
+
+```bash
+# 1) o compositor
+lx stop && lx start --no-picom
+```
+Se parar de piscar, é o picom. Aí ajuste `~/.config/picom/picom.conf` dentro do
+Ubuntu: comece ligando o vsync, que é o contrário do padrão atual.
+
+```bash
+lx shell
+sed -i 's/^vsync = false/vsync = true/' ~/.config/picom/picom.conf
+exit
+```
+
+```bash
+# 2) o formato de cor do Termux:X11
+lx stop && lx start --extra "-force-bgra"
+```
+Rosa é um sintoma clássico de canais de cor trocados. Se resolver, é isto.
+
+```bash
+# 3) a GPU
+lx stop && lx start --gpu software
+```
+Lento, mas se as cores estabilizarem o problema está no driver Turnip.
+
+> Rode um por vez, na ordem. Combinar os três esconde qual era a causa.
+
+Descobriu qual? Vale [abrir uma issue][issues] dizendo qual dos três resolveu —
+assim o padrão do projeto pode mudar com base em evidência.
+
+[issues]: https://github.com/NicolasArthurDev/linux-android/issues
+
+---
+
 ## Se algo der errado
 
 **Tela preta com tudo rodando** — era o caso mais comum, e a causa é o

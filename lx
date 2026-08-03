@@ -748,6 +748,91 @@ install_browser_inside() {
     esac
 }
 
+# VS Code.
+#
+# Duas armadilhas:
+#   1. Nao esta em nenhum repositorio do Ubuntu. Vem do repo da Microsoft, que
+#      publica arm64 (conferido: Architectures inclui arm64).
+#   2. E Electron. O sandbox do Chromium precisa de namespaces de usuario, que
+#      o proot nao oferece — sem desativar, ele nem abre.
+install_vscode_inside() {
+    [ "$CTX" = "ubuntu" ] || die "install_vscode_inside só roda dentro do Ubuntu."
+    export DEBIAN_FRONTEND=noninteractive
+
+    header "Instalando o VS Code"
+
+    if have code; then
+        ok "já instalado ($(code --version 2>/dev/null | head -1))"
+    else
+        apt update || warn "apt update com erro (seguindo)"
+        apt_install_soft wget gpg ca-certificates apt-transport-https
+
+        step "Configurando o repositório da Microsoft (arm64)..."
+        install -d -m 0755 /etc/apt/keyrings
+        wget -qO- https://packages.microsoft.com/keys/microsoft.asc \
+            | gpg --dearmor > /etc/apt/keyrings/microsoft.gpg \
+            || { err "não consegui baixar a chave da Microsoft."; return 1; }
+
+        echo "deb [arch=arm64 signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/code stable main" \
+            > /etc/apt/sources.list.d/vscode.list
+
+        apt update || return 1
+        step "Instalando (~120 MB)..."
+        apt install -y code || { err "falha ao instalar o VS Code."; return 1; }
+    fi
+
+    # O sandbox do Electron nao funciona em proot: o processo nem sobe.
+    step "Desativando o sandbox do Electron (obrigatório em proot)..."
+    cat > /etc/profile.d/vscode-proot.sh <<'ENVF'
+# Gerado por 'lx vscode'. O sandbox do Chromium/Electron exige namespaces de
+# usuario, indisponiveis em proot. Sem isto o VS Code nao abre.
+export ELECTRON_DISABLE_SANDBOX=1
+ENVF
+    chmod 644 /etc/profile.d/vscode-proot.sh
+
+    # Tambem no atalho do menu, senao abrir pelo lançador continua falhando.
+    local d=/usr/share/applications/code.desktop
+    if [ -f "$d" ] && ! grep -q -- '--no-sandbox' "$d"; then
+        sed -i 's|^\(Exec=.*/code\)|\1 --no-sandbox|' "$d"
+        sed -i 's|^\(Exec=/usr/share/code/code\)|\1 --no-sandbox|' "$d"
+        ok "atalho do menu ajustado com --no-sandbox"
+    fi
+
+    # Wrapper para a linha de comando, para nao precisar lembrar da flag.
+    cat > /usr/local/bin/code-proot <<'WRAP'
+#!/usr/bin/env bash
+exec /usr/bin/code --no-sandbox --disable-gpu-sandbox "$@"
+WRAP
+    chmod +x /usr/local/bin/code-proot
+
+    cat <<'MSG'
+
+============================================================
+ VS Code instalado.
+
+ Abra pelo menu do desktop, ou no terminal:
+
+     code-proot .          (wrapper com as flags necessárias)
+     code --no-sandbox .   (equivalente, à mão)
+
+ O 'code' puro NÃO abre: o sandbox do Electron precisa de
+ namespaces de usuário, que o proot não oferece.
+
+ Extensões, temas e settings funcionam normalmente.
+============================================================
+MSG
+}
+
+cmd_vscode() {
+    if [ "$CTX" = "ubuntu" ]; then
+        install_vscode_inside
+    else
+        require_termux "vscode"
+        require_ubuntu_installed
+        run_in_ubuntu vscode-install
+    fi
+}
+
 cmd_browser() {
     local which_b="${1:-firefox}"
     case "$which_b" in
@@ -2349,6 +2434,7 @@ BANNER
         say "    ${C_BOLD}3${C_RESET})  Aceleração de GPU           ${C_DIM}gpu${C_RESET}"
         say "    ${C_BOLD}4${C_RESET})  Navegador                   ${C_DIM}browser${C_RESET}"
         say "    ${C_BOLD}5${C_RESET})  Desktop rice (bspwm)        ${C_DIM}rice${C_RESET}"
+        say "    ${C_BOLD}v${C_RESET})  VS Code                     ${C_DIM}vscode${C_RESET}"
         echo
         say "  ${C_DIM}USAR${C_RESET}"
         say "    ${C_BOLD}6${C_RESET})  Iniciar o desktop           ${C_DIM}start${C_RESET}"
@@ -2380,6 +2466,7 @@ BANNER
             3) cmd_gpu ;;
             4) menu_browser ;;
             5) menu_rice ;;
+            v|V) cmd_vscode ;;
             6) cmd_start ;;
             7) cmd_stop ;;
             8) menu_de ;;
@@ -2545,6 +2632,10 @@ ${C_BOLD}COMANDOS${C_RESET}
 
                         Depois:  lx start --de bspwm
 
+    ${C_BOLD}vscode${C_RESET}              Instala o VS Code (repo oficial da Microsoft, arm64)
+                        e desativa o sandbox do Electron, que não funciona
+                        em proot. Cria o wrapper 'code-proot'.
+
     ${C_BOLD}browser${C_RESET} [qual]      Instala um navegador que REALMENTE roda em proot.
                         qual: firefox (padrão) | falkon
 
@@ -2613,6 +2704,7 @@ main() {
         gpu)              cmd_gpu ;;
         browser|navegador) cmd_browser "$@" ;;
         rice)             cmd_rice "$@" ;;
+        vscode|code)      cmd_vscode ;;
         doctor|diag)      cmd_doctor ;;
         status)           cmd_status ;;
         shell|ubuntu)     cmd_shell ;;
@@ -2636,6 +2728,7 @@ main() {
         setup-gpu)        install_gpu_inside ;;
         browser-install)  install_browser_inside "$@" ;;
         rice-install)     install_rice_inside "$@" ;;
+        vscode-install)   install_vscode_inside ;;
 
         *) err "comando desconhecido: '$cmd'"; echo; cmd_help; exit 1 ;;
     esac

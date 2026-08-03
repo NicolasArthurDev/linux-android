@@ -112,17 +112,19 @@ apt install -y libreoffice git htop fastfetch glmark2
 > Ubuntu 26.04 nem a Adreno 740 — mostra "Unknown" em vários campos. O
 > `fastfetch` é o sucessor mantido e detecta a GPU corretamente.
 
-O **VS Code** não está na lista porque exige o repositório da Microsoft. Se quiser:
+O **VS Code** tem comando próprio, porque envolve duas armadilhas:
 
 ```bash
-apt install -y wget gpg
-wget -qO- https://packages.microsoft.com/keys/microsoft.asc \
-    | gpg --dearmor > /usr/share/keyrings/microsoft.gpg
-echo "deb [arch=arm64 signed-by=/usr/share/keyrings/microsoft.gpg] \
-https://packages.microsoft.com/repos/code stable main" \
-    > /etc/apt/sources.list.d/vscode.list
-apt update && apt install -y code
+lx vscode
 ```
+
+1. Não está em repositório nenhum do Ubuntu — vem do repo da Microsoft (que
+   publica arm64).
+2. É **Electron**: o sandbox do Chromium precisa de namespaces de usuário, que o
+   proot não oferece. Sem desativar, ele não abre.
+
+O comando resolve os dois e cria o wrapper `code-proot`, com as flags já postas.
+O `code` puro não vai abrir.
 
 > ⚠️ Não coloque comentários `#` no fim de linhas continuadas com `\` num
 > `apt install` — isso quebra a continuação e o comando falha.
