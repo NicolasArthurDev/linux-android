@@ -48,4 +48,24 @@ done
 
 echo "-- abre um terminal para a sessao nao parecer vazia"
 chk_match "bspwmrc lanca kitty" "kitty" "$(cat "$C/bspwm/bspwmrc")"
+
+echo "-- bspwmrc com TODOS os binarios ausentes (cenario da tela preta)"
+# Nenhum comando existe: o script deve registrar cada falta e terminar ok,
+# em vez de morrer em silencio e deixar a tela vazia sem pista do motivo.
+BIN="$SB/nada"; mkdir -p "$BIN"
+# /bin/sh por caminho absoluto: o PATH aponta para um diretorio VAZIO de
+# proposito, para que nenhum dos comandos do bspwmrc seja encontrado.
+out="$(cd "$SB" && env -i PATH="$BIN" HOME="$HOME" DISPLAY=:0 \
+        /bin/sh "$C/bspwm/bspwmrc" 2>&1; echo "rc=$?")"
+chk_match "termina sem erro"          "rc=0"                "$out"
+LOGB="/tmp/lx-bspwm.log"
+chk "gera o log de passos"            "sim" "$([ -f "$LOGB" ] && echo sim || echo nao)"
+if [ -f "$LOGB" ]; then
+    for b in sxhkd xsetroot picom dunst; do
+        chk_match "registra $b ausente" "$b AUSENTE" "$(cat "$LOGB")"
+    done
+    chk_match "avisa a falta de terminal" "NENHUM terminal" "$(cat "$LOGB")"
+    chk_match "diz onde achar o xsetroot" "x11-xserver-utils" "$(cat "$LOGB")"
+    rm -f "$LOGB"
+fi
 finish

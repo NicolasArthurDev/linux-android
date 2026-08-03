@@ -815,17 +815,51 @@ write_rice_configs() {
     cat > "$H/.config/bspwm/bspwmrc" <<'BSPWM'
 #!/bin/sh
 # Gerado por 'lx rice'. Recarregue com: super + shift + r
+#
+# Este arquivo registra cada passo em /tmp/lx-bspwm.log. Com --shared-tmp esse
+# /tmp e o mesmo do Termux, entao o 'lx log' consegue ler.
+#
+# POR QUE registrar: quando um componente nao inicia, o bspwm nao reclama — a
+# tela simplesmente fica vazia, sem nenhuma pista do que faltou.
 
-pgrep -x sxhkd >/dev/null || sxhkd &
+LXL=/tmp/lx-bspwm.log
+: > "$LXL"
+lxlog() { echo "[bspwmrc] $*" >> "$LXL"; }
 
-# Fundo. Troque por uma imagem com:  feh --bg-fill ~/wall.png
-xsetroot -solid "#1e1e2e"
+lxlog "inicio | DISPLAY=$DISPLAY HOME=$HOME"
 
-picom --config "$HOME/.config/picom/picom.conf" &
-dunst &
-"$HOME/.config/polybar/launch.sh" &
+# Cada componente e opcional: a ausencia de um nao deve derrubar a sessao.
+start() { # $1 = binario, resto = argumentos
+    b="$1"; shift
+    if command -v "$b" >/dev/null 2>&1; then
+        "$b" "$@" >> "$LXL" 2>&1 &
+        lxlog "$b iniciado"
+    else
+        lxlog "$b AUSENTE (instale com: apt install -y $b)"
+    fi
+}
 
-bspc monitor -d 1 2 3 4 5
+pgrep -x sxhkd >/dev/null 2>&1 || start sxhkd
+
+# Fundo. Se o xsetroot faltar, a tela fica PRETA em vez do roxo escuro — foi
+# assim que descobrimos que ele nao estava rodando.
+if command -v xsetroot >/dev/null 2>&1; then
+    xsetroot -solid "#1e1e2e" && lxlog "xsetroot ok"
+else
+    lxlog "xsetroot AUSENTE (vem no pacote x11-xserver-utils)"
+fi
+
+start picom --config "$HOME/.config/picom/picom.conf"
+start dunst
+
+if [ -x "$HOME/.config/polybar/launch.sh" ]; then
+    "$HOME/.config/polybar/launch.sh" >> "$LXL" 2>&1
+    lxlog "polybar disparada"
+else
+    lxlog "launch.sh da polybar AUSENTE"
+fi
+
+bspc monitor -d 1 2 3 4 5 >> "$LXL" 2>&1 || lxlog "bspc monitor FALHOU"
 
 # Gaps largos + borda fina: e o que da o ar "minimalista" do rice.
 bspc config border_width          2
@@ -852,10 +886,17 @@ bspc rule -a Pavucontrol    state=floating
 # POR QUE: um tiling WM sem janelas mostra so uma cor solida — sem icones,
 # sem papel de parede, sem menu. E visualmente identico a uma falha. Pior
 # ainda no celular, onde nao existe a tecla 'super' para abrir nada.
-# Com um terminal aberto fica obvio que a sessao subiu.
-if [ -z "$(bspc query -N -d)" ] && command -v kitty >/dev/null 2>&1; then
-    kitty &
+if [ -z "$(bspc query -N -d 2>/dev/null)" ]; then
+    if command -v kitty >/dev/null 2>&1; then
+        start kitty
+    elif command -v xterm >/dev/null 2>&1; then
+        start xterm
+    else
+        lxlog "NENHUM terminal disponivel — a tela vai ficar vazia"
+    fi
 fi
+
+lxlog "fim do bspwmrc"
 BSPWM
     chmod +x "$H/.config/bspwm/bspwmrc"
 
@@ -1035,7 +1076,7 @@ POLY
 #!/usr/bin/env bash
 killall -q polybar 2>/dev/null
 while pgrep -x polybar >/dev/null; do sleep 0.3; done
-polybar main -c "$HOME/.config/polybar/config.ini" >/tmp/polybar.log 2>&1 &
+polybar main -c "$HOME/.config/polybar/config.ini" >>/tmp/lx-bspwm.log 2>&1 &
 PLAUNCH
     chmod +x "$H/.config/polybar/launch.sh"
 
@@ -2050,6 +2091,16 @@ cmd_log() {
     else
         tail -25 "$f" | sed 's/^/  /'
     fi
+
+    # O bspwmrc registra os passos num arquivo separado, dentro do container.
+    # Com --shared-tmp o /tmp de la e este mesmo diretorio.
+    local bl="${TMPDIR:-$PREFIX/tmp}/lx-bspwm.log"
+    if [ -f "$bl" ]; then
+        echo
+        say "${C_BOLD}Sessão bspwm${C_RESET}  ${C_DIM}($bl)${C_RESET}"
+        sed 's/^/  /' "$bl" | tail -30
+    fi
+
     echo
     info "log completo:  cat $f"
 }
@@ -2088,7 +2139,7 @@ modelo $(getprop ro.product.model 2>/dev/null || echo '?')"
 
     echo "--- binários de sessão ---"
     local b
-    for b in startplasma-x11 startplasma-wayland bspwm sxhkd polybar rofi picom kitty; do
+    for b in startplasma-x11 startplasma-wayland bspwm sxhkd polybar rofi picom kitty xsetroot feh dunst; do
         printf '%-22s %s\n' "$b" "$([ -x "${ROOTFS}/usr/bin/$b" ] && echo presente || echo AUSENTE)"
     done
     echo
@@ -2113,6 +2164,10 @@ modelo $(getprop ro.product.model 2>/dev/null || echo '?')"
     else
         echo "(sem log — rode 'lx start' primeiro)"
     fi
+
+    local bl="${TMPDIR:-$PREFIX/tmp}/lx-bspwm.log"
+    echo "--- sessão bspwm ---"
+    if [ -f "$bl" ]; then cat "$bl" | sed 's/^/    /'; else echo "(sem log de bspwm)"; fi
     echo "===== fim ====="
 }
 
